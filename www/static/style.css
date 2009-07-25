@@ -1,0 +1,31 @@
+body {
+
+	background-color: #bfbfbf;
+}
+
+#header, #mainContent, #footer {
+	background-color: #e5e5e5;
+}
+
+#banner {
+	font-size: 2em;
+	font-family: sans-serif;
+
+}
+
+.navbar li {
+}
+
+.tableNumber {
+	text-align: right;
+}
+
+table {
+	border: 1px solid black;
+	
+}
+
+table td {
+	background: #add8e6;
+	border: none;
+}
