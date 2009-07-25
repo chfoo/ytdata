@@ -28,6 +28,7 @@ import logging.handlers
 import traceback
 import time
 import gdata.youtube.service
+import gdata.service
 
 import database
 import ytextract
@@ -35,7 +36,7 @@ import ytextract
 class Crawler:
 	CRAWL_QUEUE_FILE = "./data/queue.pickle"
 	TABLE_NAME = "vidtable1"
-	QUEUE_SLEEP_TIME = 2
+	QUEUE_SLEEP_TIME = .5
 	
 	def __init__(self):
 		# Get video ids to crawl
@@ -116,7 +117,7 @@ class Crawler:
 			if not was_traversed:
 				self.traverse_video(video_id)
 			
-		except:
+		except gdata.service.RequestError:
 			logging.error(traceback.format_exc())
 			logging.warning("Skipping %s due to YouTube service error" % video_id)
 		
