@@ -1,3 +1,23 @@
+"""YouTube API Data Crawler"""
+
+# Copyright (C) 2009 Christopher Foo <chris.foo@gmail.com>
+#
+# This file is part of ytdata.
+#
+# ytdata is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# ytdata is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with ytdata.  If not, see <http://www.gnu.org/licenses/>.
+
+__docformat__ = "restructuredtext en"
 
 import os
 import os.path
@@ -16,7 +36,9 @@ class Crawler:
 	CRAWL_QUEUE_FILE = "./data/queue.pickle"
 	TABLE_NAME = "vidtable1"
 	QUEUE_SLEEP_TIME = 2
+	
 	def __init__(self):
+		# Get video ids to crawl
 		if os.path.exists(self.CRAWL_QUEUE_FILE):
 			f = open(self.CRAWL_QUEUE_FILE, "r")
 			self.crawl_queue = pickle.load(f)
@@ -24,6 +46,7 @@ class Crawler:
 		else:
 			logging.warning("Crawl queue file not found. Queue is empty")
 			self.crawl_queue = []
+		
 		self.db = database.Database()
 		self.yt_service = gdata.youtube.service.YouTubeService()
 		self.running = False
@@ -49,15 +72,29 @@ class Crawler:
 		logging.info("Run finished")
 		
 	def in_database(self, video_id):
+		"""Get whether video is already in database
+		
+		:Return:
+			`boolean`
+		"""
+		
 		rows = self.db.conn.execute("SELECT 1 FROM %s WHERE id = ?" % self.TABLE_NAME, (video_id,)).fetchone()
 		return rows is not None #len(rows) > 0
 	
 	def was_traversed(self, video_id):
+		"""Get whether video was already traversed
+		
+		:Return:
+			`boolean`
+		"""
+		
 		rows = self.db.conn.execute("SELECT 1 FROM %s WHERE (id=? AND traversed=1)" % self.TABLE_NAME, (video_id,)).fetchone()
 		return rows is not None #len(rows) > 0
 	
 	
 	def process_queue_item(self):
+		"""Add video to database and related videos to queue"""
+		
 		video_id = self.crawl_queue[0]
 		logging.info("Process 1 queue item %s", video_id)
 		
@@ -87,6 +124,8 @@ class Crawler:
 		return self.crawl_queue.pop(0)
 	
 	def traverse_video(self, video_id):
+		"""Add related videos to queue"""
+		
 		logging.info("Traversing video %s" % video_id)
 		related_feed = self.yt_service.GetYouTubeRelatedVideoFeed(video_id=video_id)
 		response_feed = self.yt_service.GetYouTubeVideoResponseFeed(video_id=video_id)
@@ -110,6 +149,17 @@ class Crawler:
 		self.add_entry(video_id, entry)
 	
 	def add_entry(self, video_id, entry, referral_id=None):
+		"""Add video data to database
+		
+		:Parameters:
+			video_id : `str`
+				A YouTube video id
+			entry : `Entry`
+				A YouTube Feed Entry
+			referral_id : `str` or `None`
+				A YouTube video id to be used as the parent
+		"""
+		
 		logging.info("Adding entry %s", video_id)
 		d = ytextract.extract_from_entry(entry)
 		logging.debug("\tGot metadata %s", d)
@@ -144,6 +194,8 @@ class Crawler:
 		self.running = False
 	
 	def write_state(self):
+		"""Push data to disk"""
+		
 		logging.info("Writing state..")
 		logging.info("\tSaving crawl queue..")
 		f = open(self.CRAWL_QUEUE_FILE, "w")
@@ -156,6 +208,13 @@ class Crawler:
 		
 	
 	def add_crawl_queue(self, video_id):
+		"""Add a video to the crawl queue
+		
+		:Parameters:
+			video_id : `str`
+				A YouTube video id
+		"""
+		
 		logging.info("Adding %s to crawl queue", video_id)
 		self.crawl_queue.append(video_id)
 	
