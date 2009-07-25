@@ -53,7 +53,7 @@ def html(html):
 		E.DIV("Statistics breakdown:",
 			E.TABLE(
 				E.TR(E.TD("Last updated"), 
-					E.TD(time.strftime("%Y-%m-%d %H:%M:%S %Z", 
+					E.TD(time.strftime("%Y-%m-%d %H:%M:%S Z", 
 						time.gmtime(os.path.getmtime("../crawler/" + db.DB_FILE))))),
 				E.TR(E.TD("Database size (bytes)"), 
 					E.TD("%d"  % database_size, {"class":"tableNumber"})),
@@ -63,6 +63,9 @@ def html(html):
 					E.TD("%d" % total_views, {"class":"tableNumber"})),
 				E.TR(E.TD("Length (seconds)"), 
 					E.TD("%d" % total_length, {"class":"tableNumber"})),
+				E.TR(E.TD("Length (days)"), 
+					E.TD("%d" % (total_length / 3600. / 24.),
+						 {"class":"tableNumber"})),
 				E.TR(E.TD("Rates"), 
 					E.TD("%d" % total_rates, {"class":"tableNumber"})),
 				E.TR(E.TD("Average rating per video"), 
