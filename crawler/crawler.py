@@ -37,6 +37,8 @@ class Crawler:
 	CRAWL_QUEUE_FILE = "./data/queue.pickle"
 	TABLE_NAME = "vidtable1"
 	QUEUE_SLEEP_TIME = .5
+	WRITE_INTERVAL = 5
+	MAX_QUEUE_SIZE = 9000
 	
 	def __init__(self):
 		# Get video ids to crawl
@@ -51,6 +53,7 @@ class Crawler:
 		self.db = database.Database()
 		self.yt_service = gdata.youtube.service.YouTubeService()
 		self.running = False
+		self.write_counter = 0
 	
 	def run(self):
 		logging.info("Running")
@@ -62,7 +65,10 @@ class Crawler:
 				
 				video_id = self.process_queue_item()
 				
-				self.write_state()
+				self.write_counter += 1
+				if self.write_counter >= self.WRITE_INTERVAL:
+					self.write_state()
+					self.write_counter = 0
 			else:
 				logging.info("Crawl queue finished")
 				break
@@ -89,9 +95,18 @@ class Crawler:
 			`boolean`
 		"""
 		
-		rows = self.db.conn.execute("SELECT 1 FROM %s WHERE (id=? AND traversed=1)" % self.TABLE_NAME, (video_id,)).fetchone()
-		return rows is not None #len(rows) > 0
+		row = self.db.conn.execute("SELECT 1 FROM %s WHERE (id=? AND traversed=1)" % self.TABLE_NAME, (video_id,)).fetchone()
+		return row is not None #len(rows) > 0
 	
+	def get_item_crawl(self):
+		"""Return a untraversed video id to traversed"""
+		
+		row = self.db.conn.execute("SELECT id FROM %s WHERE traversed!=1" % self.TABLE_NAME).fetchone()
+		
+		if row is not None:
+			return row[0]
+		else:
+			return None
 	
 	def process_queue_item(self):
 		"""Add video to database and related videos to queue"""
@@ -109,9 +124,8 @@ class Crawler:
 		#	self.update_entry(video_id)
 		
 		try:
-			entry = self.yt_service.GetYouTubeVideoEntry(video_id=video_id)
-			
 			if not has_seen:
+				entry = self.yt_service.GetYouTubeVideoEntry(video_id=video_id)
 				self.add_entry(video_id, entry)
 		
 			if not was_traversed:
@@ -135,7 +149,7 @@ class Crawler:
 		for entry in entries:
 			id = entry.id.text.split("/")[-1]
 			self.add_entry(id, entry, video_id)
-			if len(self.crawl_queue) < 100000:
+			if len(self.crawl_queue) < self.MAX_QUEUE_SIZE:
 				self.add_crawl_queue(id)
 			else:
 				logging.warning("\tQueue too big, %s not added" % id)
@@ -199,9 +213,11 @@ class Crawler:
 		
 		logging.info("Writing state..")
 		logging.info("\tSaving crawl queue..")
-		f = open(self.CRAWL_QUEUE_FILE, "w")
+		f = open(self.CRAWL_QUEUE_FILE + ".new", "w")
 		pickle.dump(self.crawl_queue, f)
 		f.close()
+		os.rename(self.CRAWL_QUEUE_FILE, self.CRAWL_QUEUE_FILE + "~")
+		os.rename(self.CRAWL_QUEUE_FILE + ".new", self.CRAWL_QUEUE_FILE)
 		logging.info("\tOK")
 		logging.info("\tDatabase commit..")
 		self.db.conn.commit()
