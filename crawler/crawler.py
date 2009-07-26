@@ -39,7 +39,7 @@ class Crawler:
 	TABLE_NAME = "vidtable1"
 	QUEUE_SLEEP_TIME = .1
 	WRITE_INTERVAL = 5
-	MAX_QUEUE_SIZE = 100
+	MAX_QUEUE_SIZE = 50
 	
 	def __init__(self):
 		# Get video ids to crawl
@@ -179,6 +179,7 @@ class Crawler:
 		related_feed = self.yt_service.GetYouTubeRelatedVideoFeed(video_id=video_id)
 		response_feed = self.yt_service.GetYouTubeVideoResponseFeed(video_id=video_id)
 		entries = related_feed.entry + response_feed.entry
+		queue_toggle = False
 		
 		for entry in entries:
 			id = entry.id.text.rsplit("/", 1)[-1]
@@ -197,10 +198,11 @@ class Crawler:
 			
 			if self.was_traversed(id):
 				logging.info("\t%s already traversed, not going to traverse it" % id)
-			elif random.random() < 0.8:
-				logging.info("\tRandomly chosen to not traverse %s" % id)
+			elif random.random() < 0.8 or queue_toggle:
+				logging.info("\tChosen to not traverse %s" % id)
 			elif len(self.crawl_queue) < self.MAX_QUEUE_SIZE:
 				self.add_crawl_queue(id)
+				queue_toggle = True
 			else:
 				logging.info("\tCrawl queue too big, %s not added" % id)
 		
