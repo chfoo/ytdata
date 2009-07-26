@@ -25,6 +25,8 @@ from lxml.html import builder as E
 import sys
 sys.path.append("../crawler/")
 import time
+import locale
+
 import database
 
 def html(html):
@@ -46,8 +48,9 @@ def html(html):
 	
 	e = html.xpath("//div[@id='mainContent']")[0]
 	e.extend([
-		E.DIV("Crawl indicates there are ", E.STRONG("%d" % total_videos),
-			 " videos "
+		E.DIV("Crawl indicates there are ", 
+			E.STRONG("%d" % total_videos),
+			 " videos ",
 			"on YouTube which have ", E.STRONG("%d" % total_views), " views ",
 			"and ", E.STRONG("%d" % total_hours), " hours"),
 		E.DIV("Statistics breakdown:",
@@ -83,4 +86,5 @@ def html(html):
 	#e = html.xpath("//head")[0]
 	#e.append(E.META({"http-equiv":"refresh", "content":"20"}))
 	
-	
+def num_format(num):
+	pass

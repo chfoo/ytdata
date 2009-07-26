@@ -30,7 +30,8 @@ sys.path.append("../crawler")
 import main
 
 def run(debug=False):
-	if debug:
+	form = cgi.FieldStorage(keep_blank_values=True)
+	if debug or "debug" in form:
 		print "Status: 200 OK"
 		print "Content-Type: text/plain"
 		print

@@ -1,10 +1,12 @@
 body {
-
+	margin: 0em;
 	background-color: #bfbfbf;
 }
 
 #header, #mainContent, #footer {
 	background-color: #e5e5e5;
+	padding: .4em;
+	margin: .4em;
 }
 
 #banner {

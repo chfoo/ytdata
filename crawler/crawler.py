@@ -54,16 +54,46 @@ class Crawler:
 		self.yt_service = gdata.youtube.service.YouTubeService()
 		self.running = False
 		self.write_counter = 0
+		self.db_insert_queue = []
+#		self.db_update_queue = []
+		self.in_database_table = {}
+		self.was_not_traversed_table = {}
+	
+	def _setup_cache(self):
+		logging.info("Setting up caches")
+		
+		# Get list of video ids
+		rows = self.db.conn.execute("SELECT id FROM %s" % self.TABLE_NAME).fetchall()
+		for row in rows:
+			id = row[0]
+			self.in_database_table[id] = True
+		
+		# Get list of not traversed ids
+		rows = self.db.conn.execute("SELECT id FROM %s WHERE traversed IS NULL OR traversed=0" % self.TABLE_NAME).fetchall()
+		
+		for row in rows:
+			id = row[0]
+			self.was_not_traversed_table[id] = True
+		
+#		print self.in_database_table
+#		print self.was_not_traversed_table
+#		sys.exit()
 	
 	def run(self):
 		logging.info("Running")
 		self.running = True
+		
+		self.vids_crawled_session = 0
+		self.start_time = time.time()
+		self._setup_cache()
 		
 		while self.running:
 			if len(self.crawl_queue) > 0:
 				logging.info("Processing queue")
 				
 				video_id = self.process_queue_item()
+				
+				self._setup_cache()
 				
 				self.write_counter += 1
 				if self.write_counter >= self.WRITE_INTERVAL:
@@ -73,9 +103,12 @@ class Crawler:
 				logging.info("Crawl queue finished")
 				break
 			
+			r = self.vids_crawled_session / (time.time() - self.start_time)
+			logging.info("Crawl rate: %f videos per second" % r)
 			logging.info("Sleeping for %s seconds" % self.QUEUE_SLEEP_TIME)
 			time.sleep(self.QUEUE_SLEEP_TIME)
 		
+		self.write_state()
 		logging.info("Run finished")
 		
 	def in_database(self, video_id):
@@ -85,8 +118,9 @@ class Crawler:
 			`boolean`
 		"""
 		
-		rows = self.db.conn.execute("SELECT 1 FROM %s WHERE id = ?" % self.TABLE_NAME, (video_id,)).fetchone()
-		return rows is not None #len(rows) > 0
+#		rows = self.db.conn.execute("SELECT 1 FROM %s WHERE id = ?" % self.TABLE_NAME, (video_id,)).fetchone()
+#		return rows is not None #len(rows) > 0
+		return video_id in self.in_database_table
 	
 	def was_traversed(self, video_id):
 		"""Get whether video was already traversed
@@ -95,8 +129,9 @@ class Crawler:
 			`boolean`
 		"""
 		
-		row = self.db.conn.execute("SELECT 1 FROM %s WHERE (id=? AND traversed=1)" % self.TABLE_NAME, (video_id,)).fetchone()
-		return row is not None #len(rows) > 0
+#		row = self.db.conn.execute("SELECT 1 FROM %s WHERE (id=? AND traversed=1)" % self.TABLE_NAME, (video_id,)).fetchone()
+#		return row is not None #len(rows) > 0
+		return video_id not in self.was_not_traversed_table
 	
 	def get_item_crawl(self):
 		"""Return a untraversed video id to traversed"""
@@ -116,9 +151,7 @@ class Crawler:
 		
 		has_seen = self.in_database(video_id)
 		was_traversed = self.was_traversed(video_id)
-		logging.info("\tHas seen: %s" % has_seen)
-		logging.info("\tWas traversed: %s" % was_traversed)
-		
+		logging.info("\tHas seen: %s; Was traversed: %s" % (has_seen, was_traversed))
 	
 		#if has_seen:
 		#	self.update_entry(video_id)
@@ -147,17 +180,33 @@ class Crawler:
 		entries = related_feed.entry + response_feed.entry
 		
 		for entry in entries:
-			id = entry.id.text.split("/")[-1]
-			self.add_entry(id, entry, video_id)
-			if len(self.crawl_queue) < self.MAX_QUEUE_SIZE:
+			id = entry.id.text.rsplit("/", 1)[-1]
+			#self.add_entry(id, entry, video_id)
+			if not self.in_database(id):
+				d = ytextract.extract_from_entry(entry)
+				d["id"] = id
+				d["referred_by"] = video_id
+				logging.info("\tAdding %s to database insert queue" % id)
+				logging.debug("\tUsing data %s" % d)
+				self.db_insert_queue.append(d)
+				self.vids_crawled_session += 1
+			else:
+				logging.info("\t%s already in database, not going to update it" % id)
+			
+			if self.was_traversed(id):
+				logging.info("\t%s already traversed, not going to traverse it" % id)
+			elif len(self.crawl_queue) < self.MAX_QUEUE_SIZE:
 				self.add_crawl_queue(id)
 			else:
-				logging.warning("\tQueue too big, %s not added" % id)
+				logging.warning("\tCrawl queue too big, %s not added" % id)
 		
+		self.process_db_queue()
+		
+		logging.info("\tMarking %s as traversed" % video_id)
 		self.db.conn.execute("""UPDATE %s SET traversed=? WHERE
 			id=?""" % self.TABLE_NAME, (1, video_id))
 		
-		logging.info("Done traversing %s" % video_id)
+		logging.info("\tDone traversing %s" % video_id)
 	
 	def update_entry(self, video_id, referral_id=None):
 		entry = self.yt_service.GetYouTubeVideoEntry(video_id=video_id)
@@ -202,8 +251,36 @@ class Crawler:
 			self.db.conn.execute("""UPDATE %s SET referred_by=? WHERE
 				id=?""" % self.TABLE_NAME, (referral_id, video_id))
 		
+		self.vids_crawled_session += 1
 		logging.info("\tDone")
 	
+	def process_db_queue(self):
+		"""Batch insert into database"""
+		
+		logging.info("Batch processing database queue..")
+#		self.db.conn.execute("""UPDATE %s SET 
+#			views=:views, 
+#			rating=:rating, 
+#			rates=:rates, 
+#			date_published=:date_published,
+#			length=:length,
+#			title=:title 
+#			WHERE id=:id""" % self.TABLE_NAME, self.db_update_queue)
+#		
+#		self.db_update_queue = []
+		
+		self.db.conn.executemany("""INSERT INTO %s
+			(id, views, rating, rates, 
+			date_published, length, title,
+			referred_by) VALUES
+			(:id,:views,:rating,:rates,
+			:date_published,:length,:title,
+			:referred_by)""" % self.TABLE_NAME, self.db_insert_queue)
+		
+		self.db_insert_queue = []
+		
+		logging.info("OK")
+		
 	def stop(self):
 		logging.info("Stopping")
 		self.running = False
@@ -241,7 +318,7 @@ class Crawler:
 		self.write_state()
 		self.db.close()
 
-if __name__ == "__main__":
+def run():
 	LOG_FILE = "data/log"
 	
 	formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(module)s:%(funcName)s:%(lineno)d: %(message)s")
@@ -257,3 +334,7 @@ if __name__ == "__main__":
 		crawler.run()
 	except:
 		logging.error(traceback.format_exc())
+	
+if __name__ == "__main__":
+	run()
+	
