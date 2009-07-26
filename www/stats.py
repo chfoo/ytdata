@@ -1,3 +1,5 @@
+# encoding=utf-8
+
 """Build HTML for statistics display"""
 
 # Copyright (C) 2009 Christopher Foo <chris.foo@gmail.com>
@@ -41,18 +43,24 @@ def html(html):
 	total_views = db.conn.execute("SELECT SUM(views) FROM %s" % db.TABLE_NAME).fetchone()[0]
 	total_hours = total_length / 3600.
 	total_rates = db.conn.execute("SELECT SUM(rates) FROM %s" % db.TABLE_NAME).fetchone()[0]
+	total_favs = db.conn.execute("SELECT SUM(favorite_count) FROM %s" % db.TABLE_NAME).fetchone()[0]
 	avg_rating = db.conn.execute("SELECT AVG(rating) FROM %s" % db.TABLE_NAME).fetchone()[0]
-	avg_views = 0.0 + total_views / total_videos
-	avg_length = 0.0 + total_length / total_videos
-
+	avg_views = float(total_views) / total_videos
+	avg_length = float(total_length) / total_videos
+	avg_favs = float(total_favs) / total_videos
 	
 	e = html.xpath("//div[@id='mainContent']")[0]
 	e.extend([
-		E.DIV("Crawl indicates there are ", 
-			E.STRONG("%d" % total_videos),
+		E.DIV(E.BIG("Of ", 
+			E.BIG(E.STRONG("%d" % total_videos)),
 			 " videos ",
-			"on YouTube which have ", E.STRONG("%d" % total_views), " views ",
-			"and ", E.STRONG("%d" % total_hours), " hours"),
+			"on YouTube, there are ", E.BIG(E.STRONG("%d" % total_views)), " views ",
+			"and ", E.BIG(E.STRONG("%d" % total_hours)), " hours of content")),
+		E.P(
+			"Aproximately %.1f%% of YouTube has been crawled. " % (total_videos / 140000000. * 100),
+			u"At this rate, it’s going to take %.1f months for me to complete the crawl." % 
+				((140000000 - total_videos) / (8.0 * 2629743.83 / 2.0)),
+			),
 		E.DIV("Statistics breakdown:",
 			E.TABLE(
 				E.TR(E.TD("Last updated"), 
@@ -66,19 +74,23 @@ def html(html):
 					E.TD("%d" % total_views, {"class":"tableNumber"})),
 				E.TR(E.TD("Length (seconds)"), 
 					E.TD("%d" % total_length, {"class":"tableNumber"})),
-				E.TR(E.TD("Length (days)"), 
-					E.TD("%d" % (total_length / 3600. / 24.),
+				E.TR(E.TD("Length (years)"), 
+					E.TD("%.2f" % (total_length / 31556926.),
 						 {"class":"tableNumber"})),
 				E.TR(E.TD("Rates"), 
 					E.TD("%d" % total_rates, {"class":"tableNumber"})),
+				E.TR(E.TD("Favourites"), 
+					E.TD("%d" % total_favs, {"class":"tableNumber"})),
 				E.TR(E.TD("Average rating per video"), 
-					E.TD("%f" % avg_rating, {"class":"tableNumber"})),
+					E.TD("%.2f" % avg_rating, {"class":"tableNumber"})),
 				E.TR(E.TD("Average views per video"), 
 					E.TD("%d" % avg_views, {"class":"tableNumber"})),
 				E.TR(E.TD("Average seconds per video"), 
 					E.TD("%d" % avg_length, {"class":"tableNumber"})),
 				E.TR(E.TD("Average minutes per video"), 
-					E.TD("%.1f" % (avg_length / 60.), {"class":"tableNumber"})),
+					E.TD("%.2f" % (avg_length / 60.), {"class":"tableNumber"})),
+				E.TR(E.TD("Average favourites per video"), 
+					E.TD("%.2f" % avg_favs, {"class":"tableNumber"})),
 				border="1",
 			))
 		]

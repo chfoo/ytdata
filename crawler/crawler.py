@@ -158,12 +158,15 @@ class Crawler:
 		#	self.update_entry(video_id)
 		
 		try:
+			entry = None
 			if not has_seen:
 				entry = self.yt_service.GetYouTubeVideoEntry(video_id=video_id)
 				self.add_entry(video_id, entry)
 		
 			if not was_traversed:
-				self.traverse_video(video_id)
+#				if not entry:
+#					entry = self.yt_service.GetYouTubeVideoEntry(video_id=video_id)
+				self.traverse_video(video_id, entry)
 			
 		except gdata.service.RequestError:
 			logging.error(traceback.format_exc())
@@ -172,12 +175,20 @@ class Crawler:
 		
 		return self.crawl_queue.pop(0)
 	
-	def traverse_video(self, video_id):
+	def traverse_video(self, video_id, entry):
 		"""Add related videos to queue"""
 		
 		logging.info("Traversing video %s" % video_id)
+		
+#		user = entry.author[0].name.text
+#		user_uri = "http://gdata.youtube.com/feeds/api/users/%s/uploads" % user
+		
 		related_feed = self.yt_service.GetYouTubeRelatedVideoFeed(video_id=video_id)
 		response_feed = self.yt_service.GetYouTubeVideoResponseFeed(video_id=video_id)
+		
+#		fav_feed = self.yt_service.GetUserFavoritesFeed(username=user)
+#		user_feed = self.yt_service.GetYouTubeVideoFeed(user_uri)
+#		entries = related_feed.entry + response_feed.entry + fav_feed.entry + user_feed.entry
 		entries = related_feed.entry + response_feed.entry
 		queue_toggle = False
 		
@@ -198,7 +209,7 @@ class Crawler:
 			
 			if self.was_traversed(id):
 				logging.info("\t%s already traversed, not going to traverse it" % id)
-			elif random.random() < 0.8 or queue_toggle:
+			elif random.random() < 0.9 or queue_toggle:
 				logging.info("\tChosen to not traverse %s" % id)
 			elif len(self.crawl_queue) < self.MAX_QUEUE_SIZE:
 				self.add_crawl_queue(id)
@@ -240,18 +251,19 @@ class Crawler:
 			logging.info("\tDatabase update row")
 			self.db.conn.execute("""UPDATE %s SET 
 				views=?, rating=?, rates=?, date_published=?,
-				length=?, title=? WHERE id=?;""" % self.TABLE_NAME, 
+				length=?, title=?, favorite_count=? WHERE id=?;""" %
+					 self.TABLE_NAME, 
 				(d["views"], d["rating"], d["rates"], d["date_published"],
-				d["length"], d["title"], video_id))
+				d["length"], d["title"], d["favorite_count"], video_id))
 		else:
 			# Add an entry
 			logging.info("\tInsert row")
 			self.db.conn.execute("""INSERT INTO %s
 				(id, views, rating, rates, 
-				date_published, length, title) VALUES
-				(?,?,?,?,?,?,?)""" % self.TABLE_NAME, 
+				date_published, length, title, favorite_count) VALUES
+				(?,?,?,?,?,?,?,?)""" % self.TABLE_NAME, 
 				(video_id, 	d["views"], d["rating"], d["rates"],
-				d["date_published"], d["length"], d["title"]))
+				d["date_published"], d["length"], d["title"], favorite_count))
 		
 		
 		if referral_id:
@@ -281,10 +293,10 @@ class Crawler:
 		self.db.conn.executemany("""INSERT INTO %s
 			(id, views, rating, rates, 
 			date_published, length, title,
-			referred_by) VALUES
-			(:id,:views,:rating,:rates,
-			:date_published,:length,:title,
-			:referred_by)""" % self.TABLE_NAME, self.db_insert_queue)
+			referred_by, favorite_count) VALUES
+			(:id, :views, :rating, :rates,
+			:date_published, :length, :title,
+			:referred_by, :favorite_count)""" % self.TABLE_NAME, self.db_insert_queue)
 		
 		self.db_insert_queue = []
 		

@@ -30,21 +30,23 @@ def extract_from_entry(entry):
 	d = {}
 	d["title"] = entry.media.title.text
 	if entry.rating:
-		d["rating"] = entry.rating.average
-		d["rates"] = entry.rating.num_raters
+		d["rating"] = float(entry.rating.average)
+		d["rates"] = int(entry.rating.num_raters)
 	else:
 		d["rating"] = None
 		d["rates"] = None
 	d["date_published"] = convert_time(entry.published.text)
 	if entry.media.duration:
-		d["length"] = entry.media.duration.seconds
+		d["length"] = int(entry.media.duration.seconds)
 	else:
 		d["length"] = None
 	d["title"] = entry.media.title.text.decode("utf-8")
 	if entry.statistics:
-		d["views"] = entry.statistics.view_count
+		d["views"] = int(entry.statistics.view_count)
+		d["favorite_count"] = int(entry.statistics.favorite_count)
 	else:
 		d["views"] = None
+		d["favorite_count"] = None
 	return d
 
 
