@@ -209,11 +209,12 @@ class Crawler:
 			
 			if self.was_traversed(id):
 				logging.info("\t%s already traversed, not going to traverse it" % id)
-			elif random.random() < 0.9 or queue_toggle:
+			elif random.random() < 0.8 or queue_toggle:
 				logging.info("\tChosen to not traverse %s" % id)
 			elif len(self.crawl_queue) < self.MAX_QUEUE_SIZE:
 				self.add_crawl_queue(id)
-				queue_toggle = True
+				if random.randint(0, 1):
+					queue_toggle = True
 			else:
 				logging.info("\tCrawl queue too big, %s not added" % id)
 		
@@ -263,7 +264,7 @@ class Crawler:
 				date_published, length, title, favorite_count) VALUES
 				(?,?,?,?,?,?,?,?)""" % self.TABLE_NAME, 
 				(video_id, 	d["views"], d["rating"], d["rates"],
-				d["date_published"], d["length"], d["title"], favorite_count))
+				d["date_published"], d["length"], d["title"], d["favorite_count"]))
 		
 		
 		if referral_id:
@@ -344,14 +345,20 @@ def run():
 	
 	formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(module)s:%(funcName)s:%(lineno)d: %(message)s")
 	logging.basicConfig(level=logging.INFO)
-	rfh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=33554432, backupCount=1)
+	rfh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=4194304, backupCount=9)
 	rfh.setFormatter(formatter)
 	logging.getLogger().addHandler(rfh)
 	
 	try:
 		crawler = Crawler()
 		if len(crawler.crawl_queue) == 0:
-			crawler.add_crawl_queue("jNQXAC9IVRw")
+			s = raw_input("No videos to crawl in queue.\nEnter space deliminated video ids and press enter (leave blank for default video):")
+			l = s.split()
+			if len(l) == 0:
+				crawler.add_crawl_queue("jNQXAC9IVRw")
+			else:
+				for i in l:
+					crawler.add_crawl_queue(i)
 		crawler.run()
 	except:
 		logging.error(traceback.format_exc())
