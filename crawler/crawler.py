@@ -27,6 +27,7 @@ import logging
 import logging.handlers
 import traceback
 import time
+import random
 import gdata.youtube.service
 import gdata.service
 
@@ -36,9 +37,9 @@ import ytextract
 class Crawler:
 	CRAWL_QUEUE_FILE = "./data/queue.pickle"
 	TABLE_NAME = "vidtable1"
-	QUEUE_SLEEP_TIME = .5
+	QUEUE_SLEEP_TIME = .1
 	WRITE_INTERVAL = 5
-	MAX_QUEUE_SIZE = 9000
+	MAX_QUEUE_SIZE = 100
 	
 	def __init__(self):
 		# Get video ids to crawl
@@ -104,7 +105,7 @@ class Crawler:
 				break
 			
 			r = self.vids_crawled_session / (time.time() - self.start_time)
-			logging.info("Crawl rate: %f videos per second" % r)
+			logging.info("Crawl rate: new %f videos per second" % r)
 			logging.info("Sleeping for %s seconds" % self.QUEUE_SLEEP_TIME)
 			time.sleep(self.QUEUE_SLEEP_TIME)
 		
@@ -196,10 +197,12 @@ class Crawler:
 			
 			if self.was_traversed(id):
 				logging.info("\t%s already traversed, not going to traverse it" % id)
+			elif random.random() < 0.8:
+				logging.info("\tRandomly chosen to not traverse %s" % id)
 			elif len(self.crawl_queue) < self.MAX_QUEUE_SIZE:
 				self.add_crawl_queue(id)
 			else:
-				logging.warning("\tCrawl queue too big, %s not added" % id)
+				logging.info("\tCrawl queue too big, %s not added" % id)
 		
 		self.process_db_queue()
 		
