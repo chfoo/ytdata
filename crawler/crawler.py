@@ -57,7 +57,7 @@ class Crawler:
 		self.db_insert_queue = []
 #		self.db_update_queue = []
 		self.in_database_table = {}
-		self.was_not_traversed_table = {}
+		self.was_traversed_table = {}
 	
 	def _setup_cache(self):
 		logging.info("Setting up caches")
@@ -69,11 +69,11 @@ class Crawler:
 			self.in_database_table[id] = True
 		
 		# Get list of not traversed ids
-		rows = self.db.conn.execute("SELECT id FROM %s WHERE traversed IS NULL OR traversed=0" % self.TABLE_NAME).fetchall()
+		rows = self.db.conn.execute("SELECT id FROM %s WHERE traversed=1" % self.TABLE_NAME).fetchall()
 		
 		for row in rows:
 			id = row[0]
-			self.was_not_traversed_table[id] = True
+			self.was_traversed_table[id] = True
 		
 #		print self.in_database_table
 #		print self.was_not_traversed_table
@@ -93,7 +93,7 @@ class Crawler:
 				
 				video_id = self.process_queue_item()
 				
-				self._setup_cache()
+				#self._setup_cache()
 				
 				self.write_counter += 1
 				if self.write_counter >= self.WRITE_INTERVAL:
@@ -131,17 +131,17 @@ class Crawler:
 		
 #		row = self.db.conn.execute("SELECT 1 FROM %s WHERE (id=? AND traversed=1)" % self.TABLE_NAME, (video_id,)).fetchone()
 #		return row is not None #len(rows) > 0
-		return video_id not in self.was_not_traversed_table
+		return video_id in self.was_traversed_table
 	
-	def get_item_crawl(self):
-		"""Return a untraversed video id to traversed"""
-		
-		row = self.db.conn.execute("SELECT id FROM %s WHERE traversed!=1" % self.TABLE_NAME).fetchone()
-		
-		if row is not None:
-			return row[0]
-		else:
-			return None
+#	def get_item_crawl(self):
+#		"""Return a untraversed video id to traversed"""
+#		
+#		row = self.db.conn.execute("SELECT id FROM %s WHERE traversed!=1" % self.TABLE_NAME).fetchone()
+#		
+#		if row is not None:
+#			return row[0]
+#		else:
+#			return None
 	
 	def process_queue_item(self):
 		"""Add video to database and related videos to queue"""
@@ -189,6 +189,7 @@ class Crawler:
 				logging.info("\tAdding %s to database insert queue" % id)
 				logging.debug("\tUsing data %s" % d)
 				self.db_insert_queue.append(d)
+				self.in_database_table[id] = True
 				self.vids_crawled_session += 1
 			else:
 				logging.info("\t%s already in database, not going to update it" % id)
@@ -205,6 +206,7 @@ class Crawler:
 		logging.info("\tMarking %s as traversed" % video_id)
 		self.db.conn.execute("""UPDATE %s SET traversed=? WHERE
 			id=?""" % self.TABLE_NAME, (1, video_id))
+		self.was_traversed_table[video_id] = True
 		
 		logging.info("\tDone traversing %s" % video_id)
 	
@@ -246,11 +248,13 @@ class Crawler:
 				(video_id, 	d["views"], d["rating"], d["rates"],
 				d["date_published"], d["length"], d["title"]))
 		
+		
 		if referral_id:
 			logging.info("\tAdding referral id %s", referral_id)
 			self.db.conn.execute("""UPDATE %s SET referred_by=? WHERE
 				id=?""" % self.TABLE_NAME, (referral_id, video_id))
-		
+			
+		self.in_database_table[video_id] = True
 		self.vids_crawled_session += 1
 		logging.info("\tDone")
 	
@@ -323,7 +327,7 @@ def run():
 	
 	formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(module)s:%(funcName)s:%(lineno)d: %(message)s")
 	logging.basicConfig(level=logging.INFO)
-	rfh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=67108864)
+	rfh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=33554432, backupCount=1)
 	rfh.setFormatter(formatter)
 	logging.getLogger().addHandler(rfh)
 	
