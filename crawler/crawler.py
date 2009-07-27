@@ -44,6 +44,7 @@ class Crawler:
 	MAX_QUEUE_SIZE = 50
 	MAX_DOWNLOAD_THREADS = 5
 	STALL_TIME = 2 # seconds
+	TRAVERSE_RATE = 0.04
 	
 	def __init__(self):
 		# Get video ids to crawl
@@ -170,7 +171,7 @@ class Crawler:
 			try:
 				entry = self.yt_service.GetYouTubeVideoEntry(video_id=video_id)
 				logging.info("\tAdding to entry queue")
-				self.entry_queue.append(entry)
+				self.process_entry(entry)
 			
 			except gdata.service.RequestError:
 				logging.error(traceback.format_exc())
@@ -208,18 +209,18 @@ class Crawler:
 		else:
 			logging.info("\tNew. Queueing for database insert")
 			self.db_insert_queue.append(d)
-			self.video_traversed_table[id] = False
+			self.video_traversed_table[d["id"]] = False
 			self.vids_crawled_session += 1
 		
 		if self.was_traversed(d["id"]):
 			logging.info("\tAlready traversed.")
-		elif random.random() < 0.9:
+		elif random.random() > self.TRAVERSE_RATE:
 			logging.info("\tDecided to not traverse.")
 		elif len(self.crawl_queue) >= self.MAX_QUEUE_SIZE:
 			logging.info("\tCrawl queue too large. Not traversing.")
 		else:
-			logging.info("\tAdding to crawl queue.")
-			self.crawl_queue.append(d["id"])
+#			logging.info("\tAdding to crawl queue.")
+			self.add_crawl_queue(d["id"])
 	
 	def traverse_video(self, video_id, entry=None):
 		"""Traverse by downloading related video feeds"""
