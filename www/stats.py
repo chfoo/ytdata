@@ -45,9 +45,9 @@ def html(html):
 	total_rates = db.conn.execute("SELECT SUM(rates) FROM %s" % db.TABLE_NAME).fetchone()[0]
 	total_favs = db.conn.execute("SELECT SUM(favorite_count) FROM %s" % db.TABLE_NAME).fetchone()[0]
 	avg_rating = db.conn.execute("SELECT AVG(rating) FROM %s" % db.TABLE_NAME).fetchone()[0]
-	avg_views = float(total_views) / total_videos
-	avg_length = float(total_length) / total_videos
-	avg_favs = float(total_favs) / total_videos
+	avg_views = db.conn.execute("SELECT AVG(views) FROM %s" % db.TABLE_NAME).fetchone()[0]
+	avg_length = db.conn.execute("SELECT AVG(length) FROM %s" % db.TABLE_NAME).fetchone()[0]
+	avg_favs = db.conn.execute("SELECT AVG(favorite_count) FROM %s" % db.TABLE_NAME).fetchone()[0]
 	
 	e = html.xpath("//div[@id='mainContent']")[0]
 	e.extend([

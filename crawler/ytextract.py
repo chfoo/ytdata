@@ -1,4 +1,4 @@
-"""Common functions to convert data to more Pythonic data"""
+"""Functions to crawl YouTube data"""
 
 # Copyright (C) 2009 Christopher Foo <chris.foo@gmail.com>
 #
@@ -22,12 +22,61 @@ __docformat__ = "restructuredtext en"
 import time
 import datetime
 import re
+import logging
+import threading
+
+class FeedDownloader(threading.Thread):
+	"""Downloads all the `Entry` in a feed by paging though it as necessary
+	
+	:attributes:
+		entires : `list`
+			A list of all the entry objects
+	"""
+	
+	FETCH_DELAY = 1 # seconds
+	
+	def __init__(self, feed_uri, yt_service, referred_by=None):
+		threading.Thread.__init__(self)
+		logging.info("New download thread")
+		self.setDaemon(True)
+		self.feed_uri = feed_uri
+		self.entries = []
+		self.yt_service = yt_service
+		self.referred_by = None
+	
+	def run(self):
+		feed_uri = self.feed_uri
+		yt_service = self.yt_service
+		
+		while True:
+			logging.info("Grabbing feed %s" % feed_uri)
+			
+			try:
+				current_feed = yt_service.GetYouTubeVideoFeed(uri=feed_uri)
+			except gdata.service.RequestError:
+				logging.error(traceback.format_exc())
+				logging.warning("Skipping %s due to YouTube service error" % video_id)
+				break
+		
+			self.entries.extend(current_feed.entry)
+			
+			feed_uri = None
+			for link in current_feed.link:
+				if link.rel == "next":
+					feed_uri = link.href
+					break
+			
+			if feed_uri is None:
+				break
+			
+			time.sleep(self.FETCH_DELAY)
 
 def extract_from_entry(entry):
 	"""Return a `dict` of useful info"""
 	
 #	print entry.__dict__
 	d = {}
+	d["id"] = entry.id.text.rsplit("/", 1)[-1]
 	d["title"] = entry.media.title.text
 	if entry.rating:
 		d["rating"] = float(entry.rating.average)
