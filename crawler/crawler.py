@@ -42,9 +42,10 @@ class Crawler:
 	QUEUE_SLEEP_TIME = .1 # seconds
 	WRITE_INTERVAL = 5
 	MAX_QUEUE_SIZE = 50
-	MAX_DOWNLOAD_THREADS = 5
-	STALL_TIME = 2 # seconds
+	MAX_DOWNLOAD_THREADS = 4
+	DOWNLOAD_STALL_TIME = 2 # seconds
 	TRAVERSE_RATE = 0.04
+	THROTTLE_STALL_TIME = 120 # seconds
 	
 	def __init__(self):
 		# Get video ids to crawl
@@ -70,7 +71,7 @@ class Crawler:
 	def _setup_cache(self):
 		"""Setup in-memory tables"""
 		
-		logging.info("Setting up table caches")
+		logging.debug("Setting up table caches")
 		
 		# Get list of video ids
 		rows = self.db.conn.execute("SELECT id, traversed FROM %s" % self.TABLE_NAME).fetchall()
@@ -102,7 +103,7 @@ class Crawler:
 		self._setup_cache()
 		
 		while self.running and (len(self.crawl_queue) > 0 or len(self.download_threads) > 0 or len(self.entry_queue) > 0):
-			logging.info("Run iteration")
+			logging.debug("Run iteration")
 				
 			if len(self.crawl_queue) > 0:
 				self.process_crawl_queue_item()
@@ -111,10 +112,10 @@ class Crawler:
 			self.process_downloaders()
 			
 			if len(self.download_threads) >= self.MAX_DOWNLOAD_THREADS:
-				logging.warning("\tToo many download threads (Now: %d; Max: %d). Stalling." % (len(self.download_threads), self.MAX_DOWNLOAD_THREADS))
+				logging.warning("\tToo many download threads (Now: %d; Max: %d). Stalling for %s seconds." % (len(self.download_threads), self.MAX_DOWNLOAD_THREADS, self.DOWNLOAD_STALL_TIME))
 			while len(self.download_threads) >= self.MAX_DOWNLOAD_THREADS:
 				self.process_downloaders()
-				time.sleep(self.STALL_TIME)
+				time.sleep(self.DOWNLOAD_STALL_TIME)
 				
 			self.write_counter += 1
 			if self.write_counter >= self.WRITE_INTERVAL:
@@ -123,7 +124,7 @@ class Crawler:
 			
 			r = self.vids_crawled_session / (time.time() - self.start_time)
 			logging.info("Crawl rate: new %f videos per second" % r)
-			logging.info("Sleeping for %s seconds" % self.QUEUE_SLEEP_TIME)
+			logging.debug("Sleeping for %s seconds" % self.QUEUE_SLEEP_TIME)
 			time.sleep(self.QUEUE_SLEEP_TIME)
 		
 		self.write_state()
@@ -165,20 +166,21 @@ class Crawler:
 		
 		has_seen = self.in_database(video_id)
 		was_traversed = self.was_traversed(video_id)
-		logging.info("\tHas seen: %s; Was traversed: %s" % (has_seen, was_traversed))
+		logging.debug("\tHas seen: %s; Was traversed: %s" % (has_seen, was_traversed))
 			
 		if not has_seen:
 			try:
 				entry = self.yt_service.GetYouTubeVideoEntry(video_id=video_id)
-				logging.info("\tAdding to entry queue")
+				logging.debug("\tAdding to entry queue")
 				self.process_entry(entry)
 			
-			except gdata.service.RequestError:
-				logging.error(traceback.format_exc())
+			except gdata.service.RequestError, d:
+				logging.exception("\tError getting YouTube video entry")
 				logging.warning("\tSkipping %s due to YouTube service error" % video_id)
+				self.check_error(d)
 		
 		if not was_traversed:
-			logging.info("\tTraversing")
+			logging.debug("\tTraversing")
 			
 			self.traverse_video(video_id)
 		
@@ -188,7 +190,10 @@ class Crawler:
 	def process_downloaders(self):
 		for downloader in self.download_threads:
 			if not downloader.isAlive():
-				logging.info("A download thread has completed")
+				logging.debug("A download thread has completed")
+				
+				self.check_error(downloader.error_dict)
+				
 				self.download_threads.remove(downloader)
 				for entry in downloader.entries:
 					self.process_entry(entry, downloader.referred_by)
@@ -205,7 +210,7 @@ class Crawler:
 		logging.debug("\tData: %s" % d)
 		
 		if self.in_database(d["id"]):
-			logging.info("\tAlready database. Not updating")
+			logging.debug("\tAlready database. Not updating")
 		else:
 			logging.info("\tNew. Queueing for database insert")
 			self.db_insert_queue.append(d)
@@ -213,11 +218,11 @@ class Crawler:
 			self.vids_crawled_session += 1
 		
 		if self.was_traversed(d["id"]):
-			logging.info("\tAlready traversed.")
+			logging.debug("\tAlready traversed.")
 		elif random.random() > self.TRAVERSE_RATE:
-			logging.info("\tDecided to not traverse.")
+			logging.debug("\tDecided to not traverse.")
 		elif len(self.crawl_queue) >= self.MAX_QUEUE_SIZE:
-			logging.info("\tCrawl queue too large. Not traversing.")
+			logging.debug("\tCrawl queue too large. Not traversing.")
 		else:
 #			logging.info("\tAdding to crawl queue.")
 			self.add_crawl_queue(d["id"])
@@ -241,12 +246,12 @@ class Crawler:
 							
 		self.process_db_queue()
 		
-		logging.info("\tMarking %s as traversed" % video_id)
+		logging.debug("\tMarking %s as traversed" % video_id)
 		self.db.conn.execute("""UPDATE %s SET traversed=? WHERE
 			id=?""" % self.TABLE_NAME, (1, video_id))
 		self.video_traversed_table[video_id] = True
 		
-		logging.info("\tDone traversing %s" % video_id)
+		logging.debug("\tDone traversing %s" % video_id)
 	
 #	def update_entry(self, video_id, referral_id=None):
 #		entry = self.yt_service.GetYouTubeVideoEntry(video_id=video_id)
@@ -303,7 +308,7 @@ class Crawler:
 	def process_db_queue(self):
 		"""Batch insert into database"""
 		
-		logging.info("Batch processing database queue..")
+		logging.debug("Batch processing database queue..")
 #		self.db.conn.execute("""UPDATE %s SET 
 #			views=:views, 
 #			rating=:rating, 
@@ -325,7 +330,7 @@ class Crawler:
 		
 		self.db_insert_queue = []
 		
-		logging.info("OK")
+		logging.debug("OK")
 		
 	def stop(self):
 		logging.info("Stopping")
@@ -335,16 +340,21 @@ class Crawler:
 		"""Push data to disk"""
 		
 		logging.info("Writing state..")
-		logging.info("\tSaving crawl queue..")
-		f = open(self.CRAWL_QUEUE_FILE + ".new", "w")
-		pickle.dump(self.crawl_queue, f)
-		f.close()
-		os.rename(self.CRAWL_QUEUE_FILE, self.CRAWL_QUEUE_FILE + "~")
-		os.rename(self.CRAWL_QUEUE_FILE + ".new", self.CRAWL_QUEUE_FILE)
-		logging.info("\tOK")
-		logging.info("\tDatabase commit..")
-		self.db.conn.commit()
-		logging.info("\tOK")
+		logging.debug("\tSaving crawl queue..")
+		try:
+			f = open(self.CRAWL_QUEUE_FILE + ".new", "w")
+			pickle.dump(self.crawl_queue, f)
+			f.close()
+			os.rename(self.CRAWL_QUEUE_FILE, self.CRAWL_QUEUE_FILE + "~")
+			os.rename(self.CRAWL_QUEUE_FILE + ".new", self.CRAWL_QUEUE_FILE)
+			
+			logging.debug("\tOK")
+			logging.debug("\tDatabase commit..")
+			self.db.conn.commit()
+			logging.info("\tOK")
+		
+		except:
+			logging.exception("Error during writing state")
 		
 	
 	def add_crawl_queue(self, video_id):
@@ -357,6 +367,17 @@ class Crawler:
 		
 		logging.info("Adding %s to crawl queue", video_id)
 		self.crawl_queue.append(video_id)
+	
+	def check_error(self, d):
+		if d is not None and "content" in d and d["content"].find("too_many_recent_calls") != -1:
+			self.throttle_back()
+	
+	def thottle_back(self):
+		"""Call this function when ``too_many_recent_calls`` occurs"""
+		
+		logging.warning("too_many_recent_calls encountered. Stalling for %s seconds." % self.THROTTLE_STALL_TIME)
+		time.sleep(self.THROTTLE_STALL_TIME)
+		logging.info("OK, let's go.")
 	
 	def quit(self):
 		logging.info("Quiting..")
@@ -373,11 +394,20 @@ def run():
 	
 	signal.signal(signal.SIGINT, sigint_handler)
 	
+	logger = logging.getLogger()
+	logger.setLevel(logging.DEBUG)
+	
 	formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(module)s:%(funcName)s:%(lineno)d: %(message)s")
-	logging.basicConfig(level=logging.INFO)
 	rfh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=4194304, backupCount=9)
+	rfh.setLevel(logging.DEBUG)
 	rfh.setFormatter(formatter)
-	logging.getLogger().addHandler(rfh)
+	logger.addHandler(rfh)
+	
+	console_formatter = logging.Formatter("%(name)s %(levelname)s: %(message)s")
+	sh = logging.StreamHandler()
+	sh.setLevel(logging.INFO)
+	sh.setFormatter(console_formatter)
+	logger.addHandler(sh)
 	
 	try:
 		crawler = Crawler()
@@ -391,7 +421,7 @@ def run():
 					crawler.add_crawl_queue(i)
 		crawler.run()
 	except:
-		logging.error(traceback.format_exc())
+		logging.exception("Run-time error")
 	
 if __name__ == "__main__":
 	run()

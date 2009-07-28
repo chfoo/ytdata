@@ -24,6 +24,8 @@ import datetime
 import re
 import logging
 import threading
+import traceback
+import gdata.service
 
 class FeedDownloader(threading.Thread):
 	"""Downloads all the `Entry` in a feed by paging though it as necessary
@@ -37,25 +39,27 @@ class FeedDownloader(threading.Thread):
 	
 	def __init__(self, feed_uri, yt_service, referred_by=None):
 		threading.Thread.__init__(self)
-		logging.info("New download thread")
+		logging.debug("New download thread")
 		self.setDaemon(True)
 		self.feed_uri = feed_uri
 		self.entries = []
 		self.yt_service = yt_service
-		self.referred_by = None
+		self.referred_by = referred_by
+		self.error_dict = None
 	
 	def run(self):
 		feed_uri = self.feed_uri
 		yt_service = self.yt_service
 		
 		while True:
-			logging.info("Grabbing feed %s" % feed_uri)
+			logging.debug("Grabbing feed %s" % feed_uri)
 			
 			try:
 				current_feed = yt_service.GetYouTubeVideoFeed(uri=feed_uri)
-			except gdata.service.RequestError:
-				logging.error(traceback.format_exc())
-				logging.warning("Skipping %s due to YouTube service error" % video_id)
+			except gdata.service.RequestError, d:
+				self.error_dict = d
+				logging.exception("Error grabbing YouTube Video Feed")
+				logging.warning("Skipping %s due to YouTube service error" % feed_uri)
 				break
 		
 			self.entries.extend(current_feed.entry)
@@ -77,25 +81,34 @@ def extract_from_entry(entry):
 #	print entry.__dict__
 	d = {}
 	d["id"] = entry.id.text.rsplit("/", 1)[-1]
-	d["title"] = entry.media.title.text
+	logging.debug("Extracting data from %s" % d["id"])
+	
+	if entry.media.title.text:
+		d["title"] = entry.media.title.text.decode("utf-8")
+	else:
+		d["title"] = None
+	
 	if entry.rating:
 		d["rating"] = float(entry.rating.average)
 		d["rates"] = int(entry.rating.num_raters)
 	else:
 		d["rating"] = None
 		d["rates"] = None
+	
 	d["date_published"] = convert_time(entry.published.text)
+	
 	if entry.media.duration:
 		d["length"] = int(entry.media.duration.seconds)
 	else:
 		d["length"] = None
-	d["title"] = entry.media.title.text.decode("utf-8")
+	
 	if entry.statistics:
 		d["views"] = int(entry.statistics.view_count)
 		d["favorite_count"] = int(entry.statistics.favorite_count)
 	else:
 		d["views"] = None
 		d["favorite_count"] = None
+	
 	return d
 
 

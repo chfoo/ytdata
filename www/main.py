@@ -27,6 +27,9 @@ import stats
 
 def run():
 	start_time = time.time()
+	
+	footer = lxml.html.Element("div", id="footer")
+	
 	html = E.HTML(
 		E.HEAD(
 			E.TITLE("YouTube API Data Crawl"),
@@ -43,14 +46,16 @@ def run():
 				),
 				id="header"), 
 			E.DIV(id="mainContent"), 
-			E.DIV("Page generated on ", time.strftime("%Y-%m-%d %H:%M:%S %Z"),
-			" in %.3f seconds" % (time.time() - start_time), id="footer"))
+			footer)
 		)
 	
 	stats.html(html)
 	
+	footer.append(E.DIV("Page generated on ", time.strftime("%Y-%m-%d %H:%M:%S %Z"),
+			" in %.3f seconds" % (time.time() - start_time)))
+	
 	print "Status: 200 OK"
-	print "Content-Type: text/html"
+	print "Content-Type: text/html; charset=utf-8"
 	print
 	print lxml.html.tostring(html, pretty_print=True, encoding="utf-8")
 	

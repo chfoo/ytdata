@@ -64,7 +64,7 @@ def html(html):
 		E.DIV("Statistics breakdown:",
 			E.TABLE(
 				E.TR(E.TD("Last updated"), 
-					E.TD(time.strftime("%Y-%m-%d %H:%M:%S Z", 
+					E.TD(time.strftime("%Y-%m-%d %H:%M:%S UTC", 
 						time.gmtime(os.path.getmtime("../crawler/" + db.DB_FILE))))),
 				E.TR(E.TD("Database size (bytes)"), 
 					E.TD("%d"  % database_size, {"class":"tableNumber"})),
