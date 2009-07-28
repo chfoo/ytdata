@@ -38,16 +38,30 @@ def html(html):
 	database_size = os.path.getsize(db.DB_FILE)
 	os.chdir(cwd)
 	
-	total_videos = db.conn.execute("SELECT COUNT(*) FROM %s" % db.TABLE_NAME).fetchone()[0]
-	total_length = db.conn.execute("SELECT SUM(length) FROM %s" % db.TABLE_NAME).fetchone()[0]
-	total_views = db.conn.execute("SELECT SUM(views) FROM %s" % db.TABLE_NAME).fetchone()[0]
+	total_videos, total_length, total_views, total_rates, \
+	total_favs, avg_rating, avg_views, avg_length, avg_favs = db.conn.execute(
+		"""SELECT
+		COUNT(*),
+		SUM(length),
+		SUM(views),
+		SUM(rates),
+		SUM(favorite_count),
+		AVG(rating),
+		AVG(views),
+		AVG(length),
+		AVG(favorite_count)
+		FROM %s """ % db.TABLE_NAME).fetchone()
+	
+#	total_videos = db.conn.execute("SELECT COUNT(*) FROM %s" % db.TABLE_NAME).fetchone()[0]
+#	total_length = db.conn.execute("SELECT SUM(length) FROM %s" % db.TABLE_NAME).fetchone()[0]
+#	total_views = db.conn.execute("SELECT SUM(views) FROM %s" % db.TABLE_NAME).fetchone()[0]
 	total_hours = total_length / 3600.
-	total_rates = db.conn.execute("SELECT SUM(rates) FROM %s" % db.TABLE_NAME).fetchone()[0]
-	total_favs = db.conn.execute("SELECT SUM(favorite_count) FROM %s" % db.TABLE_NAME).fetchone()[0]
-	avg_rating = db.conn.execute("SELECT AVG(rating) FROM %s" % db.TABLE_NAME).fetchone()[0]
-	avg_views = db.conn.execute("SELECT AVG(views) FROM %s" % db.TABLE_NAME).fetchone()[0]
-	avg_length = db.conn.execute("SELECT AVG(length) FROM %s" % db.TABLE_NAME).fetchone()[0]
-	avg_favs = db.conn.execute("SELECT AVG(favorite_count) FROM %s" % db.TABLE_NAME).fetchone()[0]
+#	total_rates = db.conn.execute("SELECT SUM(rates) FROM %s" % db.TABLE_NAME).fetchone()[0]
+#	total_favs = db.conn.execute("SELECT SUM(favorite_count) FROM %s" % db.TABLE_NAME).fetchone()[0]
+#	avg_rating = db.conn.execute("SELECT AVG(rating) FROM %s" % db.TABLE_NAME).fetchone()[0]
+#	avg_views = db.conn.execute("SELECT AVG(views) FROM %s" % db.TABLE_NAME).fetchone()[0]
+#	avg_length = db.conn.execute("SELECT AVG(length) FROM %s" % db.TABLE_NAME).fetchone()[0]
+#	avg_favs = db.conn.execute("SELECT AVG(favorite_count) FROM %s" % db.TABLE_NAME).fetchone()[0]
 	
 	e = html.xpath("//div[@id='mainContent']")[0]
 	e.extend([
