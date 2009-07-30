@@ -463,7 +463,7 @@ class Crawler:
 		if d is not None and str(d).find("too_many_recent_calls") != -1:
 			self.throttle_back()
 	
-	def thottle_back(self):
+	def throttle_back(self):
 		"""Call this function when ``too_many_recent_calls`` occurs"""
 		
 		logging.warning("too_many_recent_calls encountered. Stalling for %s seconds." % self.THROTTLE_STALL_TIME)
