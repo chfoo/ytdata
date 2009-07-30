@@ -43,8 +43,17 @@ class Database:
 		"subscribers",
 		"subscriptions",
 		"traversed",
+		"favorites",
+		"views",
 		)
 	USER_TABLE_NAME = "usertable1"
+	PLAYLIST_COLUMNS = (
+		"id",
+		"published",
+		"title",
+		"traversed",
+	)
+	PLAYLIST_TABLE_NAME = "playlisttable1"
 	
 	def __init__(self):
 		self.connection = sqlite3.connect(self.DB_FILE)

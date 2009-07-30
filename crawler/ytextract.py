@@ -61,6 +61,10 @@ class FeedDownloader(threading.Thread):
 				logging.exception("Error grabbing YouTube Video Feed")
 				logging.warning("Skipping %s due to YouTube service error" % feed_uri)
 				break
+			
+			if current_feed is None:
+				logging.warning("Skipping %s due to YouTube service error" % feed_uri)
+				break
 		
 			self.entries.extend(current_feed.entry)
 			
@@ -95,7 +99,10 @@ def extract_from_entry(entry):
 		d["rating"] = None
 		d["rates"] = None
 	
-	d["date_published"] = convert_time(entry.published.text)
+	if entry.published:
+		d["date_published"] = convert_time(entry.published.text)
+	else:
+		d["date_published"] = None
 	
 	if entry.media.duration:
 		d["length"] = int(entry.media.duration.seconds)
@@ -111,6 +118,28 @@ def extract_from_entry(entry):
 	
 	return d
 
+def extract_from_user_entry(entry):
+	d = {}
+	d["username"] = entry.username.text
+	d["join_date"] = convert_time(entry.published.text)
+	d["videos_watched"] = entry.statistics.video_watch_count
+	d["subscribers"] = entry.statistics.subscriber_count
+	d["views"] = entry.statistics.view_count
+	
+	for feed_link in entry.feed_link:
+		if feed_link.rel == "http://gdata.youtube.com/schemas/2007#user.favorites":
+			if feed_link.count_hint:
+				d["favorites"] = feed_link.count_hint
+			else:
+				d["favorites"] = None
+		elif feed_link.rel == "http://gdata.youtube.com/schemas/2007#user.subscriptions":
+			if feed_link.count_hint:
+				d["subscriptions"] = feed_link.count_hint
+			else:
+				d["subscriptions"] = None
+	
+	return d
+	
 
 def convert_time(s):
 	"""Convert time into epoch/UTC seconds"""

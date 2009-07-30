@@ -31,7 +31,7 @@ import yapgvb # use too much memory
 import database
 
 DEST_FILE = "cache/graph.png"
-#DOT_FILE = "cache/graph.dot"
+DOT_FILE = "cache/graph.dot"
 def generate_graph():
 	cwd = os.getcwd()
 	os.chdir("../crawler")
@@ -43,6 +43,7 @@ def generate_graph():
 	#graph.fontsize = 8.0
 	#graph = pydot.Graph(graph_name="YouTube Videos", graph_type="digraph")
 	node_table = {}
+	title_table = {}
 	
 #	def get_node(name):
 #		if name in node_table:
@@ -55,7 +56,7 @@ def generate_graph():
 #	f = open(DOT_FILE, "w")
 #	f.write("digraph G {\n")
 	
-	cursor = db.conn.execute("SELECT id, referred_by FROM %s" % db.TABLE_NAME)
+	cursor = db.conn.execute("SELECT id, referred_by, title FROM %s" % db.TABLE_NAME)
 	rows = cursor.fetchall()
 	counter = 0
 #	while True: #counter < 1000:
@@ -66,10 +67,11 @@ def generate_graph():
 		if row is None:
 			break
 		
-		v_id = row[0].encode("utf-8")
+		v_id = row[0]#.encode("utf-8")
 		r_id = row[1]
-		if r_id:
-			r_id = r_id.encode("utf-8")
+		title = row[2]
+#		if r_id:
+#			r_id = r_id.encode("utf-8")
 		
 		if counter % 10000 == 0:
 			print counter, v_id, r_id
@@ -90,30 +92,40 @@ def generate_graph():
 #			f.write("\t\"%s\";\n" % v_id)
 		
 		node_table[v_id] = r_id
+#		if title:
+#			title = title.encode("utf-8")
+		title_table[v_id] = title
+	
+	def get_title(video_id):
+		t = title_table[video_id]
+		return u"%s\n%s".encode("utf-8") % (video_id, t)
+		
+	
+	def traverse_children(parent_id, parent_node, depth):
+		if depth > 0:
+			for child_id in get_children(parent_id):
+				print child_id
+				label = title_table[child_id]
+				child_node = graph.add_node(child_id.encode("utf-8"), label=get_title(child_id))
+				graph.add_edge(parent_node, child_node)
+				traverse_children(child_id, child_node, (depth - 1))
+	
+	def get_children(video_id):
+		l = []
+		for pair in node_table.iteritems():
+			key, value = pair
+			if value == video_id:
+				l.append(key)
+		return l
 	
 	target_id = random.choice(node_table.keys())
-	parent_id = node_table[target_id]
-	
-	parent_node = graph.add_node(parent_id, label=parent_id)
-	node = graph.add_node(target_id, label=target_id)
+	node = graph.add_node(target_id.encode("utf-8"), label=get_title(target_id))
 	node.shape = "circle"
 	#graph.add_edge(parent_node, node)
 	
-	print "target:", target_id, "parent:", node_table[target_id]
+	traverse_children(node_table[target_id], node, 2)
 	
-	vids_used = [target_id]
-	for key in node_table.keys():
-		value = node_table[key]
-		
-		if value == target_id:
-			print "child:", value
-			child_node = graph.add_node(value, label=value)
-			graph.add_edge(node, child_node)
-		elif value == parent_id:
-			print "sibling:", key
-			sibling_node = graph.add_node(key, label=key)
-			graph.add_edge(parent_node, sibling_node)
-			
+	
 	
 	db.close()
 	
@@ -122,11 +134,12 @@ def generate_graph():
 	#f.write("}\n")
 	#f.close()
 	
+	graph.write(DOT_FILE)
+	
 	graph.layout(yapgvb.engines.neato)
 	
 	graph.render(DEST_FILE)
 	
-	#graph.write("cache/graph.dot")
 	
 
 if __name__ == "__main__":
