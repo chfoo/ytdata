@@ -290,9 +290,10 @@ class Crawler:
 				VALUES (?,?)""" % self.db.USER_TABLE_NAME, 
 				(username, d["videos_watched"]))
 		except gdata.service.RequestError, d:
+			logging.exception("YouTube request error for user %s" % username)
+			logging.warning("Skipping user %s statistics " % username)
 			
 			self.check_error(d)
-			logging.warning("Unable to get data for user %s" % username)
 			
 			logging.debug("\tInsert username into database")
 			
@@ -311,8 +312,9 @@ class Crawler:
 						self.add_uri_to_crawl(uri)
 		
 		except gdata.service.RequestError, d:
+			logging.exception("Unable to get playlists for %s " % username)
 			self.check_error(d)
-			logging.warning("Unable to get playlists for %s " % username)
+			logging.warning("Skipping playlists for %s" % username)
 		
 		fav_uri = "http://gdata.youtube.com/feeds/api/users/%s/favorites?start-index=1&max-results=50" % username
 		uploads_uri = "http://gdata.youtube.com/feeds/api/users/%s/uploads?start-index=1&max-results=50" % username
