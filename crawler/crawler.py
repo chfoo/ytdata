@@ -173,7 +173,7 @@ class Crawler:
 				try:
 					entry = self.yt_service.GetYouTubeVideoEntry(video_id=video_id)
 					logging.debug("\tAdding to entry queue")
-					self.process_entry(entry)
+					self.process_entry(entry, referred_by)
 			
 				except gdata.service.RequestError, d:
 					logging.exception("\tError getting YouTube video entry")
