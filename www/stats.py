@@ -63,6 +63,13 @@ def html(html):
 #	avg_length = db.conn.execute("SELECT AVG(length) FROM %s" % db.TABLE_NAME).fetchone()[0]
 #	avg_favs = db.conn.execute("SELECT AVG(favorite_count) FROM %s" % db.TABLE_NAME).fetchone()[0]
 	
+	users, avg_videos_watched, max_videos_watched = db.conn.execute("""
+		SELECT
+		COUNT(*),
+		AVG(videos_watched),
+		MAX(videos_watched)
+		FROM %s """ % db.USER_TABLE_NAME).fetchone()
+	
 	e = html.xpath("//div[@id='mainContent']")[0]
 	e.extend([
 		E.DIV(E.BIG("Of ", 
@@ -71,7 +78,7 @@ def html(html):
 			"on YouTube, there are ", E.BIG(E.STRONG("%d" % total_views)), " views ",
 			"and ", E.BIG(E.STRONG("%d" % total_hours)), " hours of content")),
 		E.P(
-			"Aproximately %.1f%% of YouTube has been crawled. " % (total_videos / 140000000. * 100),
+			"Aproximately %.1f%% of YouTube videos has been crawled. " % (total_videos / 140000000. * 100),
 			u"At this rate, it’s going to take %.1f months for me to complete the crawl." % 
 				((140000000 - total_videos) / (8.0 * 2629743.83 / 2.0)),
 			),
@@ -95,6 +102,8 @@ def html(html):
 					E.TD("%d" % total_rates, {"class":"tableNumber"})),
 				E.TR(E.TD("Favourites"), 
 					E.TD("%d" % total_favs, {"class":"tableNumber"})),
+				E.TR(E.TD("Users"), 
+					E.TD("%d" % users, {"class":"tableNumber"})),
 				E.TR(E.TD("Average rating per video"), 
 					E.TD("%.2f" % avg_rating, {"class":"tableNumber"})),
 				E.TR(E.TD("Average views per video"), 
@@ -106,11 +115,9 @@ def html(html):
 				E.TR(E.TD("Average favourites per video"), 
 					E.TD("%.2f" % avg_favs, {"class":"tableNumber"})),
 				E.TR(E.TD("Average videos watched per user"), 
-					E.TD("%.2f", {"class":"tableNumber"})),
-				E.TR(E.TD("Average favourites per user"), 
-					E.TD("%.2f", {"class":"tableNumber"})),
-				E.TR(E.TD("."), 
-					E.TD("%.2f", {"class":"tableNumber"})),
+					E.TD("%.2f" % avg_videos_watched, {"class":"tableNumber"})),
+				E.TR(E.TD("Maximum videos watched for a user"), 
+					E.TD("%.2f" % max_videos_watched, {"class":"tableNumber"})),
 				border="1",
 			))
 		]

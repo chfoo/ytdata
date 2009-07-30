@@ -211,8 +211,12 @@ class Crawler:
 				self.check_error(downloader.error_dict)
 				
 				self.download_threads.remove(downloader)
-				for entry in downloader.entries:
-					self.process_entry(entry, downloader.referred_by)
+			
+			entries = downloader.entries
+			downloader.entries = []
+			
+			for entry in entries:
+				self.process_entry(entry, downloader.referred_by)
 	
 	def process_entries(self):
 		for entry in self.entry_queue:
@@ -275,24 +279,40 @@ class Crawler:
 	
 	def traverse_user(self, username):
 		logging.info("Traversing user %s" % username)
-		entry = self.yt_service.GetYouTubeUserEntry(username=username)
+		try:
+			entry = self.yt_service.GetYouTubeUserEntry(username=username)
 		
-		d = ytextract.extract_from_user_entry(entry)
-		logging.debug("\tGot user data %s" % d)
-		
-		logging.debug("\tInsert user data into database")
-		self.db.conn.execute("""INSERT INTO %s (username, videos_watched)
-			VALUES (?,?)""" % self.db.USER_TABLE_NAME, 
-			(username, d["videos_watched"]))
+			d = ytextract.extract_from_user_entry(entry)
+			logging.debug("\tGot user data %s" % d)
+			
+			logging.debug("\tInsert user data into database")
+			self.db.conn.execute("""INSERT INTO %s (username, videos_watched)
+				VALUES (?,?)""" % self.db.USER_TABLE_NAME, 
+				(username, d["videos_watched"]))
+		except gdata.service.RequestError, d:
+			
+			self.check_error(d)
+			logging.warning("Unable to get data for user %s" % username)
+			
+			logging.debug("\tInsert username into database")
+			
+			self.db.conn.execute("""INSERT INTO %s (username)
+				VALUES (?)""" % self.db.USER_TABLE_NAME, [username])
+			
 		
 		playlist_uri = "http://gdata.youtube.com/feeds/api/users/%s/playlists?start-index=1&max-results=50" % username
-		playlists = self.yt_service.GetYouTubePlaylistFeed(uri=playlist_uri)
+		try:
+			playlists = self.yt_service.GetYouTubePlaylistFeed(uri=playlist_uri)
 		
-		for entry in playlists.entry:
-			for feed_link in entry.feed_link:
-				if feed_link.rel == "http://gdata.youtube.com/feeds/api/playlists/05802A78D227CE4C":
-					uri = feed_link.href
-					self.add_uri_to_crawl(uri)
+			for entry in playlists.entry:
+				for feed_link in entry.feed_link:
+					if feed_link.rel == "http://gdata.youtube.com/feeds/api/playlists/05802A78D227CE4C":
+						uri = feed_link.href
+						self.add_uri_to_crawl(uri)
+		
+		except gdata.service.RequestError, d:
+			self.check_error(d)
+			logging.warning("Unable to get playlists for %s " % username)
 		
 		fav_uri = "http://gdata.youtube.com/feeds/api/users/%s/favorites?start-index=1&max-results=50" % username
 		uploads_uri = "http://gdata.youtube.com/feeds/api/users/%s/uploads?start-index=1&max-results=50" % username
@@ -438,7 +458,7 @@ class Crawler:
 #		self.crawl_queue.append(video_id)
 	
 	def check_error(self, d):
-		if d is not None and "content" in d and d["content"].find("too_many_recent_calls") != -1:
+		if d is not None and str(d).find("too_many_recent_calls") != -1:
 			self.throttle_back()
 	
 	def thottle_back(self):
