@@ -1,6 +1,7 @@
 body {
 	margin: 0em;
 	background-color: #bfbfbf;
+	color: black;
 }
 
 #header, #mainContent, #footer {
