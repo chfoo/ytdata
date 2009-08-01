@@ -52,17 +52,8 @@ def html(html):
 		AVG(favorite_count)
 		FROM %s """ % db.TABLE_NAME).fetchone()
 	
-#	total_videos = db.conn.execute("SELECT COUNT(*) FROM %s" % db.TABLE_NAME).fetchone()[0]
-#	total_length = db.conn.execute("SELECT SUM(length) FROM %s" % db.TABLE_NAME).fetchone()[0]
-#	total_views = db.conn.execute("SELECT SUM(views) FROM %s" % db.TABLE_NAME).fetchone()[0]
 	total_hours = total_length / 3600.
-#	total_rates = db.conn.execute("SELECT SUM(rates) FROM %s" % db.TABLE_NAME).fetchone()[0]
-#	total_favs = db.conn.execute("SELECT SUM(favorite_count) FROM %s" % db.TABLE_NAME).fetchone()[0]
-#	avg_rating = db.conn.execute("SELECT AVG(rating) FROM %s" % db.TABLE_NAME).fetchone()[0]
-#	avg_views = db.conn.execute("SELECT AVG(views) FROM %s" % db.TABLE_NAME).fetchone()[0]
-#	avg_length = db.conn.execute("SELECT AVG(length) FROM %s" % db.TABLE_NAME).fetchone()[0]
-#	avg_favs = db.conn.execute("SELECT AVG(favorite_count) FROM %s" % db.TABLE_NAME).fetchone()[0]
-	
+
 	users, avg_videos_watched, max_videos_watched = db.conn.execute("""
 		SELECT
 		COUNT(*),
@@ -117,7 +108,7 @@ def html(html):
 				E.TR(E.TD("Average videos watched per user"), 
 					E.TD("%.2f" % avg_videos_watched, {"class":"tableNumber"})),
 				E.TR(E.TD("Maximum videos watched for a user"), 
-					E.TD("%.2f" % max_videos_watched, {"class":"tableNumber"})),
+					E.TD("%d" % max_videos_watched, {"class":"tableNumber"})),
 				border="1",
 			))
 		]
