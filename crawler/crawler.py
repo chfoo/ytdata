@@ -44,7 +44,8 @@ class Crawler:
 	MAX_QUEUE_SIZE = 50
 	MAX_DOWNLOAD_THREADS = 4
 	DOWNLOAD_STALL_TIME = 2 # seconds
-	TRAVERSE_RATE = 0.1
+	TRAVERSE_RATE = 0.1 # Crawl related videos
+	USER_TRAVERSE_RATE = 0.4 # crawl user favs, uploads, playlists
 	THROTTLE_STALL_TIME = 120 # seconds
 	
 	def __init__(self):
@@ -250,10 +251,17 @@ class Crawler:
 		else:
 #			logging.info("\tAdding to crawl queue.")
 			self.add_uri_to_crawl(None, video_id=d["id"], referred_by=referred_by)
-			username = entry.author[0].name.text
-			if username not in self.user_traversed_table \
-			or self.user_traversed_table[username] == False:
-				self.traverse_user(username)
+		
+		username = entry.author[0].name.text
+		if username in self.user_traversed_table and self.user_traversed_table[username] == True:
+			logging.debug("\tUser was already traversed.")
+		elif random.random() > self.USER_TRAVERSE_RATE:
+			logging.debug("\tDecided to not traverse user")
+		elif len(self.crawl_queue) >= self.MAX_QUEUE_SIZE:
+			logging.debug("\tCrawl queue too large. Not traversing user.")
+		else:
+			self.traverse_user(username)
+		
 	
 	def traverse_video(self, video_id, entry=None):
 		"""Queue related and video responses feed, mark video as traversed"""
@@ -307,7 +315,7 @@ class Crawler:
 		
 			for entry in playlists.entry:
 				for feed_link in entry.feed_link:
-					if feed_link.rel == "http://gdata.youtube.com/feeds/api/playlists/05802A78D227CE4C":
+					if feed_link.rel == "http://gdata.youtube.com/schemas/2007#playlist":
 						uri = feed_link.href
 						self.add_uri_to_crawl(uri)
 		
@@ -503,15 +511,19 @@ def run():
 	try:
 		crawler = Crawler()
 		if len(crawler.crawl_queue) == 0:
-			s = raw_input("No videos to crawl in queue.\nEnter space deliminated video ids and press enter (leave blank for default video):")
+			s = raw_input("No videos to crawl in queue.\nEnter space deliminated video ids or Favorites, Playlist (not feed of playlists), Responses, Upload urls (prefix with http://) and press enter (leave blank for default video):")
 			l = s.split()
 			if len(l) == 0:
 				print "Using default jNQXAC9IVRw"
 				crawler.add_uri_to_crawl(None, video_id="jNQXAC9IVRw")
 			else:
 				for i in l:
-					print "Adding", i
-					crawler.add_uri_to_crawl(None, video_id=i)
+					if i.startswith("http://"):
+						print "Adding feed", i
+						crawler.add_uri_to_crawl(i)
+					else:
+						print "Adding video", i
+						crawler.add_uri_to_crawl(None, video_id=i)
 		crawler.run()
 	except:
 		logging.exception("Run-time error")
