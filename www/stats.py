@@ -38,10 +38,11 @@ def html(html):
 	database_size = os.path.getsize(db.DB_FILE)
 	os.chdir(cwd)
 	
-	total_videos, total_length, total_views, total_rates, \
+	total_videos, total_exist, total_length, total_views, total_rates, \
 	total_favs, avg_rating, avg_views, avg_length, avg_favs = db.conn.execute(
 		"""SELECT
 		COUNT(*),
+		COUNT(length),
 		SUM(length),
 		SUM(views),
 		SUM(rates),
@@ -52,6 +53,7 @@ def html(html):
 		AVG(favorite_count)
 		FROM %s """ % db.TABLE_NAME).fetchone()
 	
+	total_deleted = total_videos - total_exist
 	total_hours = total_length / 3600.
 
 	users, avg_videos_watched, max_videos_watched = db.conn.execute("""
@@ -71,7 +73,7 @@ def html(html):
 		E.P(
 			"Aproximately %.1f%% of YouTube videos has been crawled. " % (total_videos / 140000000. * 100),
 			u"At this rate, it’s going to take %.1f months for me to complete the crawl." % 
-				((140000000 - total_videos) / (8.0 * 2629743.83 / 2.0)),
+				((140000000 - total_videos) / (10.0 * 2629743.83 / 2.0)),
 			),
 		E.DIV("Statistics breakdown:",
 			E.TABLE(
@@ -93,6 +95,9 @@ def html(html):
 					E.TD("%d" % total_rates, {"class":"tableNumber"})),
 				E.TR(E.TD("Favourites"), 
 					E.TD("%d" % total_favs, {"class":"tableNumber"})),
+				E.TR(E.TD("Deleted"), 
+					E.TD("%d" % total_deleted, {"class":"tableNumber"})),
+										
 				E.TR(E.TD("Users"), 
 					E.TD("%d" % users, {"class":"tableNumber"})),
 				E.TR(E.TD("Average rating per video"), 

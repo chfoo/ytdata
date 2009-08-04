@@ -31,6 +31,10 @@ import random
 import signal
 import gdata.youtube.service
 import gdata.service
+import threading
+import tempfile
+import shelve
+import shutil
 
 import database
 import ytextract
@@ -44,8 +48,8 @@ class Crawler:
 	MAX_QUEUE_SIZE = 50
 	MAX_DOWNLOAD_THREADS = 4
 	DOWNLOAD_STALL_TIME = 2 # seconds
-	TRAVERSE_RATE = 0.1 # Crawl related videos
-	USER_TRAVERSE_RATE = 0.4 # crawl user favs, uploads, playlists
+	TRAVERSE_RATE = 0.05 # Crawl related videos
+	USER_TRAVERSE_RATE = 0.5 # crawl user favs, uploads, playlists
 	THROTTLE_STALL_TIME = 120 # seconds
 	
 	def __init__(self):
@@ -65,36 +69,45 @@ class Crawler:
 		self.write_counter = 0 # Counter for write interval
 #		self.db_insert_queue = [] # List of arguements to be inserted into db
 #		self.db_update_queue = []
-		self.video_traversed_table = {}
-		self.user_traversed_table = {}
-		self.playlist_traversed_table = {}
+#		self.video_traversed_table = None # anydbm
+#		self.user_traversed_table = None # anydmb
+#		self.playlist_traversed_table = None # anydbm
 		self.download_threads = []
 		self.entry_queue = [] # A list of YouTube Entry to be inserted into db
+		self.lock = threading.Lock()
 	
-	def _setup_cache(self):
-		"""Setup in-memory tables"""
-		
-		logging.debug("Setting up table caches")
-		
-		# Get list of video ids
-		rows = self.db.conn.execute("SELECT id, traversed FROM %s" % self.TABLE_NAME).fetchall()
-		for row in rows:
-			self.video_traversed_table[row[0]] = (row[1] == 1)
-		
-		# Get user and traversed status
-		rows = self.db.conn.execute("SELECT username, traversed FROM %s" % self.USER_TABLE_NAME)
-		
-		for row in rows:
-			self.user_traversed_table[row[0]] = (row[1] == 1)
-		
-#		# Get playlist and traversed status
-#		rows = self.db.conn.execute("SELECT id, traversed FROM %s" % self.db.PLAYLIST_TABLE_NAME)
+#	def _setup_cache(self):
+#		"""Setup on-disk tables"""
+#		
+#		logging.debug("Setting up table caches")
+#		
+#		# http://jjinux.blogspot.com/2008/08/python-memory-conservation-tip_05.html
+##		tdir = tempfile.mkdtemp()
+##		self.video_traversed_table = shelve.open(os.path.join(tdir, "vid"))
+##		self.user_traversed_table = shelve.open(os.path.join(tdir, "user"))		
+##		shutil.rmtree(tdir)
+#		
+#		# Get list of video ids
+#		rows = self.db.conn.execute("SELECT id, traversed FROM %s" % self.TABLE_NAME)
 #		for row in rows:
-#			self.playlist_traversed_table[row[0]] = (row[1] == 1)
-		
-#		print self.in_database_table
-#		print self.was_not_traversed_table
-#		sys.exit()
+#			self.video_traversed_table[row[0].encode("utf-8")] = (row[1] == 1)
+#		
+#		
+#		# Get user and traversed status
+#		rows = self.db.conn.execute("SELECT username, traversed FROM %s" % self.USER_TABLE_NAME)
+#		
+#		for row in rows:
+#			self.user_traversed_table[row[0].encode("utf-8")] = (row[1] == 1)
+#		
+#		
+##		# Get playlist and traversed status
+##		rows = self.db.conn.execute("SELECT id, traversed FROM %s" % self.db.PLAYLIST_TABLE_NAME)
+##		for row in rows:
+##			self.playlist_traversed_table[row[0]] = (row[1] == 1)
+#		
+##		print self.in_database_table
+##		print self.was_not_traversed_table
+##		sys.exit()
 	
 	def run(self):
 		logging.info("Running")
@@ -102,7 +115,7 @@ class Crawler:
 		
 		self.vids_crawled_session = 0
 		self.start_time = time.time()
-		self._setup_cache()
+#		self._setup_cache()
 		
 		while self.running and (len(self.crawl_queue) > 0 or len(self.download_threads) > 0 or len(self.entry_queue) > 0):
 			logging.debug("Run iteration")
@@ -136,8 +149,11 @@ class Crawler:
 		:Return:
 			`boolean`
 		"""
+		#video_id = video_id.encode("utf-8")
+		#return video_id in self.video_traversed_table
 		
-		return video_id in self.video_traversed_table
+		r = self.db.conn.execute("SELECT 1 FROM %s WHERE id = ? LIMIT 1" % self.db.TABLE_NAME, [video_id]).fetchone()
+		return r is not None and r[0] == 1
 	
 	def was_traversed(self, video_id):
 		"""Get whether video was already traversed
@@ -145,8 +161,20 @@ class Crawler:
 		:Return:
 			`boolean`
 		"""
-		r = (video_id in self.video_traversed_table and self.video_traversed_table[video_id])
-		return r
+#		video_id = video_id.encode("utf-8")
+#		r = (video_id in self.video_traversed_table and self.video_traversed_table[video_id])
+		r = self.db.conn.execute("SELECT traversed FROM %s WHERE id = ? LIMIT 1" % self.db.TABLE_NAME, [video_id]).fetchone()
+		return r is not None and r[0] == 1
+	
+	def user_in_database(self, username):
+		r = self.db.conn.execute("SELECT 1 FROM %s WHERE username = ? LIMIT 1" % self.db.USER_TABLE_NAME, [username]).fetchone()
+		return r is not None and r[0] == 1
+		
+	def user_was_traversed(self, username):
+		r = self.db.conn.execute("SELECT traversed FROM %s WHERE username = ? LIMIT 1" % self.db.USER_TABLE_NAME, [username]).fetchone()
+		return r is not None and r[0] == 1
+		
+	
 	
 #	def get_item_crawl(self):
 #		"""Return a untraversed video id to traversed"""
@@ -213,9 +241,15 @@ class Crawler:
 				
 				self.download_threads.remove(downloader)
 			
-			entries = downloader.entries
-			downloader.entries = []
-			
+			# http://jessenoller.com/2009/02/01/python-threads-and-the-global-interpreter-lock/
+			self.lock.acquire()
+			entries = []
+			try:
+				entries = downloader.entries
+				downloader.entries = []
+			finally:
+				self.lock.release()
+				
 			for entry in entries:
 				self.process_entry(entry, downloader.referred_by)
 	
@@ -239,7 +273,7 @@ class Crawler:
 			#self.db_insert_queue.append(d)
 			logging.info("\tNew! Adding to database.")
 			self.db_video_insert(d)
-			self.video_traversed_table[d["id"]] = False
+#			self.video_traversed_table[d["id"]] = False
 			self.vids_crawled_session += 1
 		
 		if self.was_traversed(d["id"]):
@@ -253,7 +287,7 @@ class Crawler:
 			self.add_uri_to_crawl(None, video_id=d["id"], referred_by=referred_by)
 		
 		username = entry.author[0].name.text
-		if username in self.user_traversed_table and self.user_traversed_table[username] == True:
+		if self.user_was_traversed(username):
 			logging.debug("\tUser was already traversed.")
 		elif random.random() > self.USER_TRAVERSE_RATE:
 			logging.debug("\tDecided to not traverse user")
@@ -280,7 +314,7 @@ class Crawler:
 		logging.debug("\tMarking %s as traversed" % video_id)
 		self.db.conn.execute("""UPDATE %s SET traversed=? WHERE
 			id=?""" % self.TABLE_NAME, (1, video_id))
-		self.video_traversed_table[video_id] = True
+#		self.video_traversed_table[video_id] = True
 		
 		logging.debug("\tDone traversing %s" % video_id)
 		
@@ -330,7 +364,7 @@ class Crawler:
 		self.add_uri_to_crawl(uploads_uri)
 		
 		logging.debug("\tMarking user %s as traversed" % username)
-		self.user_traversed_table[username] = True
+#		self.user_traversed_table[username.encode("utf-8")] = True
 		self.db.conn.execute("""UPDATE %s SET traversed=? WHERE
 			username=?""" % self.db.USER_TABLE_NAME, (1, username))
 

@@ -24,27 +24,27 @@ import sqlite3
 class Database:
 	DB_FILE = "./data/ytdata.db"
 	COLUMNS = (
-		"id",
-		"views",
-		"rating",
-		"rates",
-		"date_published",
-		"length",
-		"referred_by",
-		"title",
-		"favorite_count",
+		"id TEXT UNIQUE",
+		"views NUMBER",
+		"rating NUMBER",
+		"rates NUMBER",
+		"date_published NUMBER",
+		"length NUMBER",
+		"referred_by TEXT",
+		"title TEXT",
+		"favorite_count NUMBER",
 		"traversed",)
 	TABLE_NAME = "vidtable1"
 	USER_COLUMNS = (
-		"username",
-		"join_date",
-		"videos_watched",
-		"uploaded",
-		"subscribers",
-		"subscriptions",
+		"username TEXT UNIQUE",
+		"join_date NUMBER",
+		"videos_watched NUMBER",
+		"uploaded NUMBER",
+		"subscribers NUMBER",
+		"subscriptions NUMBER",
 		"traversed",
-		"favorites",
-		"views",
+		"favorites NUMBER",
+		"views NUMBER",
 		)
 	USER_TABLE_NAME = "usertable1"
 	PLAYLIST_COLUMNS = (
@@ -62,6 +62,10 @@ class Database:
 	def create_table(self, num="1"):
 		self.conn.execute("CREATE TABLE vidtable%s(%s)" % (num, ",".join(self.COLUMNS)))
 		self.conn.execute("CREATE TABLE usertable%s(%s)" % (num, ",".join(self.USER_COLUMNS)))
+		
+		self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS video_id ON %s (id)" % self.TABLE_NAME)
+		self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS user_id ON %s (username)" % self.USER_TABLE_NAME)
+		
 	
 	def close(self):
 		self.connection.close()
