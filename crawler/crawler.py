@@ -50,7 +50,9 @@ class Crawler:
 	DOWNLOAD_STALL_TIME = 2 # seconds
 	TRAVERSE_RATE = 0.05 # Crawl related videos
 	USER_TRAVERSE_RATE = 0.5 # crawl user favs, uploads, playlists
-	THROTTLE_STALL_TIME = 120 # seconds
+	THROTTLE_STALL_TIME = 60 * 5 # seconds
+	RECENT_VIDS_URI = "http://gdata.youtube.com/feeds/api/standardfeeds/most_recent"
+	RECENT_VIDS_INTERVAL = 3600 # seconds
 	
 	def __init__(self):
 		# Crawl queue:
@@ -116,10 +118,16 @@ class Crawler:
 		self.vids_crawled_session = 0
 		self.start_time = time.time()
 #		self._setup_cache()
+		recent_vids_next_time = time.time() + self.RECENT_VIDS_INTERVAL
 		
 		while self.running and (len(self.crawl_queue) > 0 or len(self.download_threads) > 0 or len(self.entry_queue) > 0):
 			logging.debug("Run iteration")
-				
+			
+			if time.time() >= recent_vids_next_time:
+				logging.debug("Inject recent videos to crawl queue")
+				self.add_uri_to_crawl(self.RECENT_VIDS_URI)
+				recent_vids_next_time = time.time() + self.RECENT_VIDS_INTERVAL
+			
 			if len(self.crawl_queue) > 0:
 				self.process_crawl_queue_item()
 			
@@ -528,7 +536,7 @@ def run():
 	signal.signal(signal.SIGINT, sigint_handler)
 	
 	logger = logging.getLogger()
-	logger.setLevel(logging.DEBUG)
+	logger.setLevel(logging.INFO)
 	
 	formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(module)s:%(funcName)s:%(lineno)d: %(message)s")
 	rfh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=4194304, backupCount=9)
