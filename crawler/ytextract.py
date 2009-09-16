@@ -84,11 +84,11 @@ def extract_from_entry(entry):
 	
 #	print entry.__dict__
 	d = {}
-#	d["id"] = entry.id.text.rsplit("/", 1)[-1]
+	d["id"] = entry.id.text.rsplit("/", 1)[-1]
 
-	for link in entry.link:
-		if link.rel == "alternate":
-			d["id"] = link.href.rsplit("=", 1)[-1]
+#	for link in entry.link:
+#		if link.rel == "alternate":
+#			d["id"] = link.href.rsplit("=", 1)[-1]
 	
 	logging.debug("Extracting data from %s" % d["id"])
 	

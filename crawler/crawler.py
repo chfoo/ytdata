@@ -260,6 +260,8 @@ class Crawler:
 				
 			for entry in entries:
 				self.process_entry(entry, downloader.referred_by)
+			
+			time.sleep(0.5)
 	
 	def process_entries(self):
 		for entry in self.entry_queue:

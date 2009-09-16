@@ -75,6 +75,11 @@ def html(html):
 			u"At this rate, it’s going to take %.1f months for me to complete the crawl." % 
 				((140000000 - total_videos) / (10.0 * 2629743.83 / 2.0)),
 			),
+		E.P(
+		E.DIV(
+			E.DIV(u"​",
+				style="width:%f%%;background:#ffa500;border:1px outset" % (total_videos / 140000000. * 100)),
+			style="background:#bfbfbf;border:1px inset;;width:90%;margin:auto;")),
 		E.DIV("Statistics breakdown:",
 			E.TABLE(
 				E.TR(E.TD("Last updated"), 
