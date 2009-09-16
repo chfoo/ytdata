@@ -27,11 +27,14 @@ import cgi
 import cgitb
 cgitb.enable()
 import random
-
-FILE = "cache/video_ids.txt"
-
+import glob
+FILE = "cache/video_ids.%08d.txt"
+FILE_GLOB = "cache/video_ids.*.txt"
+LINES = 100000
 def get_random_id():
-	f = open(FILE)
+	
+	filename = random.choice(glob.glob(FILE_GLOB))
+	f = open(filename)
 	
 	# http://code.activestate.com/recipes/59865/
 	line_num = 0
@@ -43,6 +46,8 @@ def get_random_id():
 		if a_line != "":
 			if random.uniform(0, line_num)<1:
 				it = a_line
+				global rand_pick_num
+				rand_pick_num = int(filename.split(".")[-2]) * LINES + line_num
 		else:
 			break
 	return it
@@ -57,10 +62,23 @@ if __name__ == "__main__":
 		import database
 		db = database.Database()
 		os.chdir(cwd)
-		f = open(FILE, "w")
+		
+		for name in glob.glob(FILE_GLOB):
+			os.remove(name)
+		
+		k = 0
+		f = open(FILE % k, "w")
+		i = 0
 		for row in db.conn.execute("SELECT id FROM %s" % db.TABLE_NAME):
 			f.write(row[0])
 			f.write("\n")
+			i += 1
+			if i >= LINES:
+				i = 0
+				k += 1
+				f.close()
+				f = open(FILE % k, "w")
+				
 		f.close()
 		db.close()
 	
@@ -70,15 +88,31 @@ if __name__ == "__main__":
 	try:
 		id = get_random_id()
 		
-		if form.has_key("watch"):
-			print "Status: 303 See other"
-			print "Location: http://youtube.com/watch?v=%s" % id
+		if form.has_key("watch") or form.has_key("preview"):
+			if form.has_key("watch"):
+				print "Status: 303 See other"
+				print "Location: http://youtube.com/watch?v=%s" % id
+			else:
+				print "Status: 200 OK"
+			print "Content-Type: text/html"
+			print
+			print "<html><head><title>%s</title>" % id
+			print """<style>body{font-family:sans-serif;
+					text-align:center</style></head>"""
+			print """<body><h4>http://youtube.com/watch?v=%s (%s)</h4>""" % (id, rand_pick_num)
+			print """<a href="http://youtube.com/watch?v=%s">""" % id
+			print """<img src="http://i.ytimg.com/vi/%s/0.jpg" /><br/> """ % id
+			print """<img src="http://i.ytimg.com/vi/%s/1.jpg" />""" %id
+			print """<img src="http://i.ytimg.com/vi/%s/2.jpg" />""" %id
+			print """<img src="http://i.ytimg.com/vi/%s/3.jpg" />""" %id
+			print """</a>"""
+			print """<br/><a href="./">[ ./ ]</a>"""
+			print """</body></html>"""
 		else:
 			print "Status: 200 OK"
 			print "Content-Type: text/plain"
-			
-		print
-		print id
+			print
+			print id
 		
 	except:
 		print "Status: 500 Internal server error"
