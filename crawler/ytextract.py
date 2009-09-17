@@ -26,6 +26,8 @@ import logging
 import threading
 import traceback
 import gdata.service
+import urlparse
+import cgi
 
 class FeedDownloader(threading.Thread):
 	"""Downloads all the `Entry` in a feed by paging though it as necessary
@@ -84,11 +86,17 @@ def extract_from_entry(entry):
 	
 #	print entry.__dict__
 	d = {}
-	d["id"] = entry.id.text.rsplit("/", 1)[-1]
+#	d["id"] = entry.id.text.rsplit("/", 1)[-1] # this isn't the real id!
+# it differs on playlists
 
-#	for link in entry.link:
-#		if link.rel == "alternate":
-#			d["id"] = link.href.rsplit("=", 1)[-1]
+	for link in entry.link:
+		if link.rel == "alternate":
+			query = urlparse.urlparse(link.href)[4]
+			qd = cgi.parse_qs(query)
+			if "v" in qd:
+				d["id"] = qd["v"][0]
+			else:
+				d["id"] = qd["video_id"][0]
 	
 	logging.debug("Extracting data from %s" % d["id"])
 	
