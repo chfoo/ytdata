@@ -28,13 +28,15 @@ import cgitb
 cgitb.enable()
 import random
 import glob
-FILE = "cache/video_ids.%08d.txt"
-FILE_GLOB = "cache/video_ids.*.txt"
+#import gzip
+import bz2
+FILE = "cache/video_ids.%08d.bz2"
+FILE_GLOB = "cache/video_ids.*.bz2"
 LINES = 100000
 def get_random_id():
 	
 	filename = random.choice(glob.glob(FILE_GLOB))
-	f = open(filename)
+	f = bz2.BZ2File(filename)
 	
 	# http://code.activestate.com/recipes/59865/
 	line_num = 0
@@ -50,6 +52,7 @@ def get_random_id():
 				rand_pick_num = int(filename.split(".")[-2]) * LINES + line_num
 		else:
 			break
+	f.close()
 	return it
 
 
@@ -67,17 +70,20 @@ if __name__ == "__main__":
 			os.remove(name)
 		
 		k = 0
-		f = open(FILE % k, "w")
+		f = bz2.BZ2File(FILE % k, "w")
 		i = 0
-		for row in db.conn.execute("SELECT id FROM %s" % db.TABLE_NAME):
+		for row in db.conn.execute("SELECT id, title FROM %s" % db.TABLE_NAME):
 			f.write(row[0])
+			f.write(" ")
+			if row[1]:
+				f.write(row[1].encode("utf-8"))
 			f.write("\n")
 			i += 1
 			if i >= LINES:
 				i = 0
 				k += 1
 				f.close()
-				f = open(FILE % k, "w")
+				f = bz2.BZ2File(FILE % k, "w")
 				
 		f.close()
 		db.close()
@@ -86,7 +92,7 @@ if __name__ == "__main__":
 	form = cgi.FieldStorage(keep_blank_values=True)
 
 	try:
-		id = get_random_id()
+		id, title = get_random_id().split(" ", 1)
 		
 		if form.has_key("watch") or form.has_key("preview"):
 			if form.has_key("watch"):
@@ -94,19 +100,20 @@ if __name__ == "__main__":
 				print "Location: http://youtube.com/watch?v=%s" % id
 			else:
 				print "Status: 200 OK"
-			print "Content-Type: text/html"
+			print "Content-Type: text/html; charset=utf-8"
 			print
-			print "<html><head><title>%s</title>" % id
+			print "<html><head><title>%s (%s  %s) </title>" % (title, id, rand_pick_num)
 			print """<style>body{font-family:sans-serif;
 					text-align:center</style></head>"""
-			print """<body><h4>http://youtube.com/watch?v=%s (%s)</h4>""" % (id, rand_pick_num)
+			print """<body><h4>%s</h4>""" % (title)
 			print """<a href="http://youtube.com/watch?v=%s">""" % id
 			print """<img src="http://i.ytimg.com/vi/%s/0.jpg" /><br/> """ % id
 			print """<img src="http://i.ytimg.com/vi/%s/1.jpg" />""" %id
 			print """<img src="http://i.ytimg.com/vi/%s/2.jpg" />""" %id
 			print """<img src="http://i.ytimg.com/vi/%s/3.jpg" />""" %id
 			print """</a>"""
-			print """<br/><a href="./">[ ./ ]</a>"""
+			print """<br/><br/>http://youtube.com/watch?v=%s """ % id
+			print """<br/><br/><a href="./">[ ./ ]</a>"""
 			print """</body></html>"""
 		else:
 			print "Status: 200 OK"

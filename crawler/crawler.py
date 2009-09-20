@@ -35,6 +35,7 @@ import threading
 import tempfile
 import shelve
 import shutil
+import httplib
 
 import database
 import ytextract
@@ -66,7 +67,9 @@ class Crawler:
 			self.crawl_queue = []
 		
 		self.db = database.Database()
+		self.httpclient = HTTPClient()
 		self.yt_service = gdata.youtube.service.YouTubeService()
+		self.yt_service.http_client = self.httpclient
 		self.running = False
 		self.write_counter = 0 # Counter for write interval
 #		self.db_insert_queue = [] # List of arguements to be inserted into db
@@ -227,7 +230,7 @@ class Crawler:
 		else:
 			
 			if len(self.download_threads) >= self.MAX_DOWNLOAD_THREADS:
-				logging.warning("\tToo many download threads (Now: %d; Max: %d). Stalling for %s seconds." % (len(self.download_threads), self.MAX_DOWNLOAD_THREADS, self.DOWNLOAD_STALL_TIME))
+				logging.info("\tToo many download threads (Now: %d; Max: %d). Stalling for %s seconds." % (len(self.download_threads), self.MAX_DOWNLOAD_THREADS, self.DOWNLOAD_STALL_TIME))
 			while len(self.download_threads) >= self.MAX_DOWNLOAD_THREADS:
 				self.process_downloaders()
 				time.sleep(self.DOWNLOAD_STALL_TIME)
@@ -261,7 +264,7 @@ class Crawler:
 			for entry in entries:
 				self.process_entry(entry, downloader.referred_by)
 			
-			time.sleep(0.5)
+#			time.sleep(0.5)
 	
 	def process_entries(self):
 		for entry in self.entry_queue:
@@ -528,6 +531,47 @@ class Crawler:
 		self.write_state()
 		self.db.close()
 
+class HTTPClient:
+	"""Connection pooling"""
+	
+	def __init__(self):
+		self.num_connections = Crawler.MAX_DOWNLOAD_THREADS + 1
+		self.connections = []
+		
+		logging.info("Starting up %d connections" % self.num_connections)
+		for i in range(self.num_connections):
+			self.connections.append(httplib.HTTPConnection("gdata.youtube.com"))
+			
+		
+		self.i = 0
+	
+	def request(self, method, url, data=None, headers=None):
+		while True:
+			try:
+				i = self.i
+				logging.debug("HTTP request [%d] %s %s %s %s" % (i, method, url, data, headers))
+				self.connections[i].request(method, str(url), data, headers)
+				break
+			except httplib.ImproperConnectionState:
+				logging.debug("\tHTTP improper connection state")
+				self.i += 1
+				if self.i >= self.num_connections:
+					self.i = 0
+				time.sleep(0.01)
+		
+		while True:
+			try:
+				response = self.connections[i].getresponse()
+				logging.debug("\tGot response")
+				return response
+			except httplib.ResponseNotReady:
+				logging.debug("\tHTTP response not ready")
+				time.sleep(0.01)
+		
+		self.i += 1
+		if self.i >= self.num_connections:
+			self.i = 0
+	
 def run():
 	LOG_FILE = "data/log"
 	
