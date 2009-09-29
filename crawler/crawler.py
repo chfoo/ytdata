@@ -80,39 +80,8 @@ class Crawler:
 		self.download_threads = []
 		self.entry_queue = [] # A list of YouTube Entry to be inserted into db
 		self.lock = threading.Lock()
-	
-#	def _setup_cache(self):
-#		"""Setup on-disk tables"""
-#		
-#		logging.debug("Setting up table caches")
-#		
-#		# http://jjinux.blogspot.com/2008/08/python-memory-conservation-tip_05.html
-##		tdir = tempfile.mkdtemp()
-##		self.video_traversed_table = shelve.open(os.path.join(tdir, "vid"))
-##		self.user_traversed_table = shelve.open(os.path.join(tdir, "user"))		
-##		shutil.rmtree(tdir)
-#		
-#		# Get list of video ids
-#		rows = self.db.conn.execute("SELECT id, traversed FROM %s" % self.TABLE_NAME)
-#		for row in rows:
-#			self.video_traversed_table[row[0].encode("utf-8")] = (row[1] == 1)
-#		
-#		
-#		# Get user and traversed status
-#		rows = self.db.conn.execute("SELECT username, traversed FROM %s" % self.USER_TABLE_NAME)
-#		
-#		for row in rows:
-#			self.user_traversed_table[row[0].encode("utf-8")] = (row[1] == 1)
-#		
-#		
-##		# Get playlist and traversed status
-##		rows = self.db.conn.execute("SELECT id, traversed FROM %s" % self.db.PLAYLIST_TABLE_NAME)
-##		for row in rows:
-##			self.playlist_traversed_table[row[0]] = (row[1] == 1)
-#		
-##		print self.in_database_table
-##		print self.was_not_traversed_table
-##		sys.exit()
+		self.throttle_required = False
+		self.throttle_next_time = None
 	
 	def run(self):
 		logging.info("Running")
@@ -126,18 +95,21 @@ class Crawler:
 		while self.running and (len(self.crawl_queue) > 0 or len(self.download_threads) > 0 or len(self.entry_queue) > 0):
 			logging.debug("Run iteration")
 			
-			if time.time() >= recent_vids_next_time:
-				logging.debug("Inject recent videos to crawl queue")
-				self.add_uri_to_crawl(self.RECENT_VIDS_URI)
-				recent_vids_next_time = time.time() + self.RECENT_VIDS_INTERVAL
+			if not self.throttle_required:
+				if time.time() >= recent_vids_next_time:
+					logging.debug("Inject recent videos to crawl queue")
+					self.add_uri_to_crawl(self.RECENT_VIDS_URI)
+					recent_vids_next_time = time.time() + self.RECENT_VIDS_INTERVAL
 			
-			if len(self.crawl_queue) > 0:
-				self.process_crawl_queue_item()
+				if len(self.crawl_queue) > 0:
+					self.process_crawl_queue_item()
 			
 			self.process_entries()
 			self.process_downloaders()
 			
-			self.write_counter += 1
+			if not self.throttle_required:
+				self.write_counter += 1
+				
 			if self.write_counter >= self.WRITE_INTERVAL:
 				self.write_state()
 				self.write_counter = 0
@@ -150,7 +122,12 @@ class Crawler:
 			else:
 				logging.debug("Sleeping for %s seconds" % self.QUEUE_SLEEP_TIME)
 				time.sleep(self.QUEUE_SLEEP_TIME)
-		
+			
+			if self.throttle_required:
+				logging.debug("Throttle required")
+				time.sleep(self.DOWNLOAD_STALL_TIME * 10)
+				self.throttle_required = time.time() < self.throttle_next_time
+			
 		self.write_state()
 		logging.info("Run finished. This shouldn't happen; try adding more video ids to crawl or adjusting the traversal rate.")
 		
@@ -186,17 +163,6 @@ class Crawler:
 		return r is not None and r[0] == 1
 		
 	
-	
-#	def get_item_crawl(self):
-#		"""Return a untraversed video id to traversed"""
-#		
-#		row = self.db.conn.execute("SELECT id FROM %s WHERE traversed!=1" % self.TABLE_NAME).fetchone()
-#		
-#		if row is not None:
-#			return row[0]
-#		else:
-#			return None
-	
 	def process_crawl_queue_item(self):
 		"""Process a Feed uri to crawl"""
 		
@@ -230,7 +196,7 @@ class Crawler:
 		else:
 			
 			if len(self.download_threads) >= self.MAX_DOWNLOAD_THREADS:
-				logging.info("\tToo many download threads (Now: %d; Max: %d). Stalling for %s seconds." % (len(self.download_threads), self.MAX_DOWNLOAD_THREADS, self.DOWNLOAD_STALL_TIME))
+				logging.debug("\tToo many download threads (Now: %d; Max: %d). Stalling for %s seconds." % (len(self.download_threads), self.MAX_DOWNLOAD_THREADS, self.DOWNLOAD_STALL_TIME))
 			while len(self.download_threads) >= self.MAX_DOWNLOAD_THREADS:
 				self.process_downloaders()
 				time.sleep(self.DOWNLOAD_STALL_TIME)
@@ -385,84 +351,6 @@ class Crawler:
 		logging.debug("Adding uri to queue %s, video_id %s, referred_by %s" % (uri, video_id, referred_by))
 		self.crawl_queue.append([uri, video_id, referred_by])
 	
-#	def update_entry(self, video_id, referral_id=None):
-#		entry = self.yt_service.GetYouTubeVideoEntry(video_id=video_id)
-#		self.add_entry(video_id, entry)
-	
-#	def add_entry(self, video_id, entry, referral_id=None):
-#		"""Add video data to database
-#		
-#		:Parameters:
-#			video_id : `str`
-#				A YouTube video id
-#			entry : `Entry`
-#				A YouTube Feed Entry
-#			referral_id : `str` or `None`
-#				A YouTube video id to be used as the parent
-#		"""
-#		
-#		logging.info("Adding entry %s", video_id)
-#		d = ytextract.extract_from_entry(entry)
-#		logging.debug("\tGot metadata %s", d)
-#			
-#		if self.in_database(video_id):
-#			# Update an entry	
-#			logging.info("\tDatabase update row")
-#			self.db.conn.execute("""UPDATE %s SET 
-#				views=?, rating=?, rates=?, date_published=?,
-#				length=?, title=?, favorite_count=? WHERE id=?;""" %
-#					 self.TABLE_NAME, 
-#				(d["views"], d["rating"], d["rates"], d["date_published"],
-#				d["length"], d["title"], d["favorite_count"], video_id))
-#		else:
-#			# Add an entry
-#			logging.info("\tInsert row")
-#			self.db.conn.execute("""INSERT INTO %s
-#				(id, views, rating, rates, 
-#				date_published, length, title, favorite_count) VALUES
-#				(?,?,?,?,?,?,?,?)""" % self.TABLE_NAME, 
-#				(video_id, 	d["views"], d["rating"], d["rates"],
-#				d["date_published"], d["length"], d["title"], d["favorite_count"]))
-#		
-#		
-#		if referral_id:
-#			logging.info("\tAdding referral id %s", referral_id)
-#			self.db.conn.execute("""UPDATE %s SET referred_by=? WHERE
-#				id=?""" % self.TABLE_NAME, (referral_id, video_id))
-#		
-#		if video_id not in self.video_traversed_table:
-#			self.video_traversed_table[video_id] = False
-#		
-#		self.vids_crawled_session += 1
-#		logging.info("\tDone")
-	
-	
-#	def process_db_queue(self):
-#		"""Batch insert into database"""
-#		
-#		logging.debug("Batch processing database queue..")
-#		self.db.conn.execute("""UPDATE %s SET 
-#			views=:views, 
-#			rating=:rating, 
-#			rates=:rates, 
-#			date_published=:date_published,
-#			length=:length,
-#			title=:title 
-#			WHERE id=:id""" % self.TABLE_NAME, self.db_update_queue)
-#		
-#		self.db_update_queue = []
-		
-#		self.db.conn.executemany("""INSERT INTO %s
-#			(id, views, rating, rates, 
-#			date_published, length, title,
-#			referred_by, favorite_count) VALUES
-#			(:id, :views, :rating, :rates,
-#			:date_published, :length, :title,
-#			:referred_by, :favorite_count)""" % self.TABLE_NAME, self.db_insert_queue)
-#		
-#		self.db_insert_queue = []
-#		
-#		logging.debug("OK")
 	
 	def db_video_insert(self, d):
 		logging.debug("Database video insert")
@@ -503,26 +391,19 @@ class Crawler:
 			logging.exception("Error during writing state")
 		
 	
-#	def add_crawl_queue(self, video_id):
-#		"""Add a video to the crawl queue
-#		
-#		:Parameters:
-#			video_id : `str`
-#				A YouTube video id
-#		"""
-#		
-#		logging.info("Adding %s to crawl queue", video_id)
-#		self.crawl_queue.append(video_id)
-	
 	def check_error(self, d):
 		if d is not None and str(d).find("too_many_recent_calls") != -1:
-			self.throttle_back()
+			self.throttle_required = True
+			self.throttle_next_time = time.time() + self.THROTTLE_STALL_TIME
+			logging.warning("too_many_recent_calls encountered. Waiting %s seconds before new requests." % self.THROTTLE_STALL_TIME)
 	
 	def throttle_back(self):
 		"""Call this function when ``too_many_recent_calls`` occurs"""
 		
 		logging.warning("too_many_recent_calls encountered. Stalling for %s seconds." % self.THROTTLE_STALL_TIME)
+		
 		time.sleep(self.THROTTLE_STALL_TIME)
+		
 		logging.info("OK, let's go.")
 	
 	def quit(self):
@@ -537,40 +418,81 @@ class HTTPClient:
 	def __init__(self):
 		self.num_connections = Crawler.MAX_DOWNLOAD_THREADS + 1
 		self.connections = []
+		self.in_use = {}
 		
 		logging.info("Starting up %d connections" % self.num_connections)
 		for i in range(self.num_connections):
-			self.connections.append(httplib.HTTPConnection("gdata.youtube.com"))
-			
+			self.init_connection()
 		
 		self.i = 0
 	
+	def init_connection(self):
+		logging.debug("Setup connection...")
+		conn = httplib.HTTPConnection("gdata.youtube.com")
+		self.connections.append(conn)
+		conn.connect()
+		logging.debug("\tOK")
+	
 	def request(self, method, url, data=None, headers=None):
 		while True:
-			try:
-				i = self.i
-				logging.debug("HTTP request [%d] %s %s %s %s" % (i, method, url, data, headers))
-				self.connections[i].request(method, str(url), data, headers)
-				break
-			except httplib.ImproperConnectionState:
-				logging.debug("\tHTTP improper connection state")
-				self.i += 1
-				if self.i >= self.num_connections:
-					self.i = 0
-				time.sleep(0.01)
+			if len(self.connections) < self.num_connections:
+				self.init_connection()
+				self.i = 0
+			
+			if self.i >= self.num_connections:
+				self.i = 0
+			
+			i = self.i
+			connection = self.connections[i]
+			if connection not in self.in_use or \
+			not self.in_use[connection]:
+				try:
+					logging.debug("HTTP request [%d] %s %s %s %s" % (i, method, url, data, headers))
+					self.in_use[connection] = True
+					connection.request(method, str(url), data, headers)
+					break
+			
+				except httplib.HTTPException:
+					# Probably got disconnected
+					logging.debug("\tHTTP exception")
+					logging.exception("HTTP exception")
+					connection.close()
+					if connection in self.in_use:
+						del self.in_use[connection] 
+					if connection in self.connections:
+						self.connections.remove(connection)
+			
+			logging.debug("\tHTTP Wait 1")
+			self.i += 1
+			time.sleep(0.01)
 		
-		while True:
+		r2_time = time.time()
+		while time.time() - r2_time < 60:
 			try:
 				response = self.connections[i].getresponse()
 				logging.debug("\tGot response")
+				self.in_use[connection] = False
 				return response
 			except httplib.ResponseNotReady:
 				logging.debug("\tHTTP response not ready")
-				time.sleep(0.01)
+			
+			except httplib.HTTPException:
+				# Probably got disconnected
+				logging.debug("\tHTTP exception")
+				logging.exception("HTTP exception")
+				break
+			
+			
+			logging.debug("\tHTTP Wait 2")
+			time.sleep(0.01)
 		
-		self.i += 1
-		if self.i >= self.num_connections:
-			self.i = 0
+		# Retry request
+		connection.close()
+		if connection in self.in_use:
+			del self.in_use[connection] 
+		if connection in self.connections:
+			self.connections.remove(connection)
+		return self.request(method, url, data, headers)
 	
 def run():
 	LOG_FILE = "data/log"
@@ -582,17 +504,17 @@ def run():
 	signal.signal(signal.SIGINT, sigint_handler)
 	
 	logger = logging.getLogger()
-	logger.setLevel(logging.INFO)
+	logger.setLevel(logging.DEBUG)
 	
 	formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(module)s:%(funcName)s:%(lineno)d: %(message)s")
 	rfh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=4194304, backupCount=9)
-	rfh.setLevel(logging.DEBUG)
+	rfh.setLevel(logging.INFO)
 	rfh.setFormatter(formatter)
 	logger.addHandler(rfh)
 	
 	console_formatter = logging.Formatter("%(name)s %(levelname)s: %(message)s")
 	sh = logging.StreamHandler()
-	sh.setLevel(logging.INFO)
+	sh.setLevel(logging.DEBUG)
 	sh.setFormatter(console_formatter)
 	logger.addHandler(sh)
 	

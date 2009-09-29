@@ -44,6 +44,7 @@ def run():
 					E.LI(E.A("Watch Random YouTube Video", href="randvid.cgi?watch")),
 					E.LI(E.A("; Preview", href="randvid.cgi?preview")),
 					E.LI(E.A("; Robot readable", href="randvid.cgi")),
+					E.LI(E.A("Browse short listings", href="browse.cgi")),
 					{"class":"navbar"},
 				),
 				id="header"), 

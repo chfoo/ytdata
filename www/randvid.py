@@ -123,7 +123,7 @@ if __name__ == "__main__":
 		
 	except:
 		print "Status: 500 Internal server error"
-		print "Content-Type: text/html"
+		print "Content-Type: text/html; charset=utf-8"
 		print 
 		print "<html><body><big>Internal server error</big><hr/>"
 		cgitb.handler()

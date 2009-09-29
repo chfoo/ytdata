@@ -133,7 +133,7 @@ def extract_from_entry(entry):
 
 def extract_from_user_entry(entry):
 	d = {}
-	d["username"] = entry.username.text
+	d["username"] = unicode(entry.username.text)
 	d["join_date"] = convert_time(entry.published.text)
 	d["videos_watched"] = entry.statistics.video_watch_count
 	d["subscribers"] = entry.statistics.subscriber_count
