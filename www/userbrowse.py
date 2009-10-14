@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-
-"""Pick random YouTube video id"""
+# encoding=utf-8
+"""Browse user names"""
 
 # Copyright (C) 2009 Christopher Foo <chris.foo@gmail.com>
 #
@@ -26,39 +26,64 @@ import os
 import cgi
 import cgitb
 cgitb.enable()
+import random
 import glob
-#import gzip
-#import bz2
-#import cStringIO as StringIO
 import subprocess
-#FILE_GLOB = "cache/video_ids.*.bz2"
-FILE_GLOB = "cache/video_ids.*.7z"
+FILE = "cache/usernames.%08d.7z"
+FILE_GLOB = "cache/usernames.*.7z"
 LINES = 100000
 LINES_PER_PAGE = 1000
-MAGNITUDE = 1000
-
-
-
-def print_pager(page, max_page, form=None):
-	if form and form.has_key("thumb"):
-		url_append_str = """&amp;thumb"""
-	else:
-		url_append_str = ""
-
-	print "<br/><br/>"
-	
-	for p in range(0, page - 5, MAGNITUDE) + range(max(0, page - 5), page):
-		print """<a href="?page=%d%s">%d</a>  """ % (p, url_append_str, p)
-	
-	print """ <strong>%d</strong> """ % page
-	
-	for p in range(page + 1, page + 5) + range(page + 5, max_page, MAGNITUDE):
-		print """<a href="?page=%d%s">%d</a>  """ % (p, url_append_str, p)
-	
-	print "<br/><br/>"
+import browse
+browse.MAGNITUDE = 100
 
 if __name__ == "__main__":
 	
+	if len(sys.argv) > 1 and sys.argv[1] == "dump":
+		cwd = os.getcwd()
+		os.chdir("../crawler")
+		sys.path.append("../crawler")
+		import database
+		db = database.Database()
+		os.chdir(cwd)
+		
+		for name in glob.glob(FILE_GLOB):
+			os.remove(name)
+		
+		if len(sys.argv) >= 3:
+			skip_k = int(sys.argv[2])
+		else:
+			skip_k = 0
+		k = 0
+		
+		if not skip_k:
+			p = subprocess.Popen(["7za", "a", "-si", FILE % k],
+				stdin=subprocess.PIPE)
+			f = p.stdin
+			
+		i = 0
+		for row in db.conn.execute("SELECT username FROM %s" % db.USER_TABLE_NAME):
+			if k >= skip_k:
+				f.write(row[0].encode("utf-8"))
+				f.write("\n")
+				
+			i += 1
+			
+			if i >= LINES:
+				i = 0
+				k += 1
+				
+				if k > skip_k:
+					p.communicate()
+				
+				if k >= skip_k:
+					p = subprocess.Popen(["7za", "a", "-si", FILE % k],
+						stdin=subprocess.PIPE)
+					f = p.stdin
+				
+		db.close()
+		p.communicate()
+		
+		sys.exit()
 	
 	form = cgi.FieldStorage(keep_blank_values=True)
 
@@ -83,7 +108,6 @@ if __name__ == "__main__":
 			executable = None
 		
 		filename = l[i]
-#		f = bz2.BZ2File(filename)
 		p = subprocess.Popen(["7za", "x", "-so", filename],
 			stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
 			executable=executable)
@@ -94,22 +118,16 @@ if __name__ == "__main__":
 		print
 		
 #		print out
-		print "<html><head><title>YouTube Data API Crawl Browse - Page %d (%s) </title>" % (page, filename)
+		print "<html><head><title>YouTube Data API Crawl Usernames - Page %d (%s) </title>" % (page, filename)
 		print """<style>body{font-family:sans-serif;}
 				.num{font-family:monospace;font-size:small;}
+				.username{font-family:monospace;}
 				</style></head>"""
 		print "<body>"
 		
-		print_pager(page, len(l) * LINES / LINES_PER_PAGE, form)
+		browse.print_pager(page, len(l) * LINES / LINES_PER_PAGE, form)
 		
 		sys.stdout.flush()
-		if not form.has_key("thumb"):
-			print """<br/><form method="get" action="?">
-				<input type="hidden" name="page" value="%d"/>
-				<input type="hidden" name="thumb" />
-				<input type="submit" value="Turn on thumbnail image"/></form>""" % page
-		else:
-			print """<br/>Thumbnail image is on.<br/><br/>"""
 			
 		start_line = page * LINES_PER_PAGE % LINES
 		end_line = start_line + LINES_PER_PAGE
@@ -125,29 +143,29 @@ if __name__ == "__main__":
 				continue
 			elif n > end_line:
 				break
-			id, title = line.split(" ", 1)
-#			id = line
-#			title = line
 			
 			print """<span class="num" >%d.</span> """ % (n + i * LINES)
-			if form.has_key("thumb"):
-				print """<img src="http://i.ytimg.com/vi/%s/1.jpg" />""" %id
-			print """<a href="http://youtube.com/watch?v=%s">""" % id
-	#		print """<img src="http://i.ytimg.com/vi/%s/0.jpg" /><br/> """ % id
-	#		print """<img src="http://i.ytimg.com/vi/%s/2.jpg" />""" %id
-	#		print """<img src="http://i.ytimg.com/vi/%s/3.jpg" />""" %id
-			print title
-			print """</a><br/>"""
-#			print """<br/><br/>http://youtube.com/watch?v=%s """ % id
+			print """<a href="http://www.youtube.com/user/%s">""" % line
+			print """<span class="username">"""
+			print line
+			print """</span>"""
+			print """</a>"""
+			try:
+				line.decode("ascii")
+			except UnicodeDecodeError:
+				print """ <strong>Unicode</strong> """ 
+				print u"""This username isn’t ASCII! """.encode("utf-8")
+				print "It is <em>so</em> not alphanumeric! "
+				print """There is a glitch in the Matrix! Only """
+				print line
+				print """ can save us now!"""
+			print "<br/>"
 			n += 1
-			
+		
 			if n % 128 == 0:
 				sys.stdout.flush()
 			
-			
-#		f.close()
-		
-		print_pager(page, len(l) * LINES / LINES_PER_PAGE, form)		
+		browse.print_pager(page, len(l) * LINES / LINES_PER_PAGE, form)		
 		
 		print "<code><small>"
 		print p.communicate()[1].replace("\n", "<br/>")
@@ -162,3 +180,4 @@ if __name__ == "__main__":
 		print "<html><body><big>Internal server error</big><hr/>"
 		cgitb.handler()
 		print "</body></html>"
+	

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+# encoding=utf-8
 """Pick random YouTube video id"""
 
 # Copyright (C) 2009 Christopher Foo <chris.foo@gmail.com>
@@ -29,29 +29,57 @@ cgitb.enable()
 import random
 import glob
 #import gzip
-import bz2
-FILE = "cache/video_ids.%08d.bz2"
-FILE_GLOB = "cache/video_ids.*.bz2"
+#import bz2
+import subprocess
+#import tempfile
+#FILE = "cache/video_ids.%08d.bz2"
+#FILE_GLOB = "cache/video_ids.*.bz2"
+FILE = "cache/video_ids.%08d.7z"
+FILE_GLOB = "cache/video_ids.*.7z"
 LINES = 100000
+
+
 def get_random_id():
 	
-	filename = random.choice(glob.glob(FILE_GLOB))
-	f = bz2.BZ2File(filename)
+	l = glob.glob(FILE_GLOB)
+	l.sort()
+	filename = random.choice(l)
+#	f = bz2.BZ2File(filename)
+	if os.path.exists(os.path.expanduser("~/bin/7za")):
+		executable = os.path.expanduser("~/bin/7za")
+	else:
+		executable = None
+		
+	p = subprocess.Popen(["7za", "x",  "-so", filename],
+		stdout=subprocess.PIPE, executable=executable)
+	f = p.stdout
 	
-	# http://code.activestate.com/recipes/59865/
-	line_num = 0
-	it = ""
+	if filename == l[-1]:
+		# http://code.activestate.com/recipes/59865/
+		line_num = 0
+		it = ""
 
-	while True:
-		a_line = f.readline()
-		line_num = line_num + 1
-		if a_line != "":
-			if random.uniform(0, line_num)<1:
-				it = a_line
-				global rand_pick_num
-				rand_pick_num = int(filename.split(".")[-2]) * LINES + line_num
-		else:
-			break
+		while True:
+			a_line = f.readline()
+			line_num = line_num + 1
+			if a_line != "":
+				if random.uniform(0, line_num)<1:
+					it = a_line
+					global rand_pick_num
+					rand_pick_num = int(filename.split(".")[-2]) * LINES + line_num
+			else:
+				break
+	else:
+		rand_num = random.randint(0, LINES)
+		line_num = 0
+		while line_num < rand_num:
+			a_line = f.readline()
+			line_num += 1
+		
+		global rand_pick_num
+		rand_pick_num = int(filename.split(".")[-2]) * LINES + line_num
+		it = f.readline()
+		
 	f.close()
 	return it
 
@@ -69,39 +97,73 @@ if __name__ == "__main__":
 		for name in glob.glob(FILE_GLOB):
 			os.remove(name)
 		
+		if len(sys.argv) >= 3:
+			skip_k = int(sys.argv[2])
+		else:
+			skip_k = 0
 		k = 0
-		f = bz2.BZ2File(FILE % k, "w")
+#		f = bz2.BZ2File(FILE % k, "w")
+		if not skip_k:
+			p = subprocess.Popen(["7za", "a", "-si", FILE % k],
+				stdin=subprocess.PIPE)
+			f = p.stdin
+			
 		i = 0
 		for row in db.conn.execute("SELECT id, title FROM %s" % db.TABLE_NAME):
-			f.write(row[0])
-			f.write(" ")
-			if row[1]:
-				f.write(row[1].encode("utf-8"))
-			f.write("\n")
+#		for row in db.conn.execute("SELECT id FROM %s" % db.TABLE_NAME):
+			if k >= skip_k:
+				f.write(row[0])
+				f.write(" ")
+				if row[1]:
+					f.write(row[1][:8].encode("utf-8"))
+					
+					if len(row[1]) > 16:
+						f.write(u"…".encode("utf-8"))
+					
+				f.write("\n")
+				
 			i += 1
+			
 			if i >= LINES:
 				i = 0
 				k += 1
-				f.close()
-				f = bz2.BZ2File(FILE % k, "w")
 				
-		f.close()
+				if k > skip_k:
+					p.communicate()
+	#				f.close()
+				
+				if k >= skip_k:
+	#				f = bz2.BZ2File(FILE % k, "w")
+					p = subprocess.Popen(["7za", "a", "-si", FILE % k],
+						stdin=subprocess.PIPE)
+					f = p.stdin
+				
 		db.close()
+		p.communicate()
+#		f.close()
+		
 	
 	
 	form = cgi.FieldStorage(keep_blank_values=True)
-
+	id = None
 	try:
-		id, title = get_random_id().split(" ", 1)
 		
 		if form.has_key("watch") or form.has_key("preview"):
 			if form.has_key("watch"):
 				print "Status: 303 See other"
+#				sys.stdout.flush()
+				id, title = get_random_id().split(" ", 1)
+#				id = get_random_id()
 				print "Location: http://youtube.com/watch?v=%s" % id
 			else:
 				print "Status: 200 OK"
 			print "Content-Type: text/html; charset=utf-8"
 			print
+			if not id:
+				id, title = get_random_id().split(" ", 1)
+#				id = get_random_id()
+#				title = id
+#			sys.stdout.flush()
 			print "<html><head><title>%s (%s  %s) </title>" % (title, id, rand_pick_num)
 			print """<style>body{font-family:sans-serif;
 					text-align:center</style></head>"""
@@ -119,7 +181,10 @@ if __name__ == "__main__":
 			print "Status: 200 OK"
 			print "Content-Type: text/plain"
 			print
+#			sys.stdout.flush()
+			id, title = get_random_id().split(" ", 1)
 			print id
+#			print get_random_id()
 		
 	except:
 		print "Status: 500 Internal server error"

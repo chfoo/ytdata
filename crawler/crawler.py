@@ -36,6 +36,8 @@ import tempfile
 import shelve
 import shutil
 import httplib
+import gzip
+import cStringIO as StringIO
 
 import database
 import ytextract
@@ -48,7 +50,7 @@ class Crawler:
 	WRITE_INTERVAL = 5
 	MAX_QUEUE_SIZE = 50
 	MAX_DOWNLOAD_THREADS = 4
-	DOWNLOAD_STALL_TIME = 2 # seconds
+	DOWNLOAD_STALL_TIME = 1 # seconds
 	TRAVERSE_RATE = 0.05 # Crawl related videos
 	USER_TRAVERSE_RATE = 0.5 # crawl user favs, uploads, playlists
 	THROTTLE_STALL_TIME = 60 * 5 # seconds
@@ -68,8 +70,9 @@ class Crawler:
 		
 		self.db = database.Database()
 		self.httpclient = HTTPClient()
-		self.yt_service = gdata.youtube.service.YouTubeService()
-		self.yt_service.http_client = self.httpclient
+		self.yt_service = gdata.youtube.service.YouTubeService(
+			http_client=self.httpclient, )
+#		self.yt_service.http_client = self.httpclient
 		self.running = False
 		self.write_counter = 0 # Counter for write interval
 #		self.db_insert_queue = [] # List of arguements to be inserted into db
@@ -97,7 +100,7 @@ class Crawler:
 			
 			if not self.throttle_required:
 				if time.time() >= recent_vids_next_time:
-					logging.debug("Inject recent videos to crawl queue")
+					logging.info("Inject recent videos to crawl queue")
 					self.add_uri_to_crawl(self.RECENT_VIDS_URI)
 					recent_vids_next_time = time.time() + self.RECENT_VIDS_INTERVAL
 			
@@ -124,7 +127,7 @@ class Crawler:
 				time.sleep(self.QUEUE_SLEEP_TIME)
 			
 			if self.throttle_required:
-				logging.debug("Throttle required")
+				logging.info("Throttle required")
 				time.sleep(self.DOWNLOAD_STALL_TIME * 10)
 				self.throttle_required = time.time() < self.throttle_next_time
 			
@@ -265,7 +268,13 @@ class Crawler:
 #			logging.info("\tAdding to crawl queue.")
 			self.add_uri_to_crawl(None, video_id=d["id"], referred_by=referred_by)
 		
-		username = entry.author[0].name.text
+		username = entry.author[0].name.text.decode("utf-8")
+		
+		if not self.user_in_database(username):
+			logging.debug("\tInsert username into database")
+			self.db.conn.execute("""INSERT INTO %s (username)
+				VALUES (?)""" % self.db.USER_TABLE_NAME, [username])
+		
 		if self.user_was_traversed(username):
 			logging.debug("\tUser was already traversed.")
 		elif random.random() > self.USER_TRAVERSE_RATE:
@@ -301,25 +310,33 @@ class Crawler:
 	def traverse_user(self, username):
 		logging.info("Traversing user %s" % username)
 		try:
-			entry = self.yt_service.GetYouTubeUserEntry(username=username)
+			entry = self.yt_service.GetYouTubeUserEntry(username=username.encode("utf-8"))
 		
 			d = ytextract.extract_from_user_entry(entry)
 			logging.debug("\tGot user data %s" % d)
 			
-			logging.debug("\tInsert user data into database")
-			self.db.conn.execute("""INSERT INTO %s (username, videos_watched)
-				VALUES (?,?)""" % self.db.USER_TABLE_NAME, 
-				(username, d["videos_watched"]))
+			if self.user_in_database(username):
+				logging.debug("\tUpdate user data into database")
+				self.db.conn.execute("""UPDATE %s SET videos_watched = ?
+					WHERE username = ?""" % self.db.USER_TABLE_NAME, 
+					(d["videos_watched"], username ))
+			else:
+				logging.debug("\tInsert user data into database")
+				self.db.conn.execute("""INSERT INTO %s (username, videos_watched)
+					VALUES (?,?)""" % self.db.USER_TABLE_NAME, 
+					(username, d["videos_watched"]))
+			
 		except gdata.service.RequestError, d:
 			logging.exception("YouTube request error for user %s" % username)
 			logging.warning("Skipping user %s statistics " % username)
 			
 			self.check_error(d)
 			
-			logging.debug("\tInsert username into database")
+			if not self.user_in_database(username):
+				logging.debug("\tInsert username into database")
 			
-			self.db.conn.execute("""INSERT INTO %s (username)
-				VALUES (?)""" % self.db.USER_TABLE_NAME, [username])
+				self.db.conn.execute("""INSERT INTO %s (username)
+					VALUES (?)""" % self.db.USER_TABLE_NAME, [username])
 			
 		
 		playlist_uri = "http://gdata.youtube.com/feeds/api/users/%s/playlists?start-index=1&max-results=50" % username
@@ -433,7 +450,7 @@ class HTTPClient:
 		conn.connect()
 		logging.debug("\tOK")
 	
-	def request(self, method, url, data=None, headers=None):
+	def request(self, method, url, data=None, headers={}):
 		while True:
 			if len(self.connections) < self.num_connections:
 				self.init_connection()
@@ -447,9 +464,19 @@ class HTTPClient:
 			if connection not in self.in_use or \
 			not self.in_use[connection]:
 				try:
+#					headers["Accept-encoding"] = "gzip"
+#					
+#					headers["User-Agent"] = headers.get("User-Agent", "") + \
+#						"chfoo-crawler (gzip, http://www.student.cs.uwaterloo.ca/~chfoo/ytdata/)"
+					
 					logging.debug("HTTP request [%d] %s %s %s %s" % (i, method, url, data, headers))
 					self.in_use[connection] = True
-					connection.request(method, str(url), data, headers)
+#					connection.request(method, str(url), data, headers)
+					connection.putrequest(method, str(url), 
+						skip_accept_encoding=True)
+					for key, value in headers.iteritems():
+						connection.putheader(key, value)
+					connection.endheaders()
 					break
 			
 				except httplib.HTTPException:
@@ -469,10 +496,29 @@ class HTTPClient:
 		r2_time = time.time()
 		while time.time() - r2_time < 60:
 			try:
-				response = self.connections[i].getresponse()
+				response = connection.getresponse()
 				logging.debug("\tGot response")
 				self.in_use[connection] = False
-				return response
+#				logging.debug(response.getheaders())
+				if response.getheader("Content-Encoding", None) == "gzip":
+					logging.debug("\tGzip encoding response")
+					string_buf = StringIO.StringIO(response.read())
+					g_o = gzip.GzipFile(fileobj=string_buf)
+					
+					class DummyResponse:
+						pass
+					dummy_response = DummyResponse()
+					dummy_response.file = g_o
+					dummy_response.read = lambda b: dummy_response.file.read(b)
+					dummy_response.getheader = response.getheader
+					dummy_response.getheaders = response.getheaders
+					dummy_response.msg = response.msg
+					dummy_response.version = response.version
+					dummy_response.status = response.status
+					dummy_response.reason = response.reason
+				
+				else:
+					return response
 			except httplib.ResponseNotReady:
 				logging.debug("\tHTTP response not ready")
 			
@@ -514,7 +560,7 @@ def run():
 	
 	console_formatter = logging.Formatter("%(name)s %(levelname)s: %(message)s")
 	sh = logging.StreamHandler()
-	sh.setLevel(logging.DEBUG)
+	sh.setLevel(logging.INFO)
 	sh.setFormatter(console_formatter)
 	logger.addHandler(sh)
 	
