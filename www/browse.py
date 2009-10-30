@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""Pick random YouTube video id"""
+"""Browse YouTube video listings"""
 
 # Copyright (C) 2009 Christopher Foo <chris.foo@gmail.com>
 #
@@ -65,6 +65,8 @@ if __name__ == "__main__":
 	try:
 		
 		page = int(form.getfirst("page", 0))
+		is_bot = "bot" in form
+		
 		i = page * LINES_PER_PAGE / LINES
 		l = glob.glob(FILE_GLOB)
 		l.sort()
@@ -94,29 +96,33 @@ if __name__ == "__main__":
 		print
 		
 #		print out
-		print "<html><head><title>YouTube Data API Crawl Browse - Page %d (%s) </title>" % (page, filename)
-		print """<style>body{font-family:sans-serif;}
-				.num{font-family:monospace;font-size:small;}
-				</style></head>"""
-		print "<body>"
+		if not is_bot:
+			print "<html><head><title>YouTube Data API Crawl Browse - Page %d (%s) </title>" % (page, filename)
+			print """<style>body{font-family:sans-serif;}
+					.num{font-family:monospace;font-size:small;}
+					</style></head>"""
+			print "<body>"
 		
-		print_pager(page, len(l) * LINES / LINES_PER_PAGE, form)
+			print_pager(page, len(l) * LINES / LINES_PER_PAGE, form)
 		
-		sys.stdout.flush()
-		if not form.has_key("thumb"):
-			print """<br/><form method="get" action="?">
-				<input type="hidden" name="page" value="%d"/>
-				<input type="hidden" name="thumb" />
-				<input type="submit" value="Turn on thumbnail image"/></form>""" % page
+			sys.stdout.flush()
+			if not form.has_key("thumb"):
+				print """<br/><form method="get" action="?">
+					<input type="hidden" name="page" value="%d"/>
+					<input type="hidden" name="thumb" />
+					<input type="submit" value="Turn on thumbnail image"/></form>""" % page
+			else:
+				print """<br/>Thumbnail image is on.<br/><br/>"""
+		
 		else:
-			print """<br/>Thumbnail image is on.<br/><br/>"""
+			print """%s([""" % form.getfirst("callback", "callback")
 			
 		start_line = page * LINES_PER_PAGE % LINES
 		end_line = start_line + LINES_PER_PAGE
 		n = 1
 		while True:
 			line = f.readline()
-			if line == "":
+			if line == "" and not is_bot:
 				print "<br/><small>EOF</small>"
 				break
 			
@@ -129,16 +135,20 @@ if __name__ == "__main__":
 #			id = line
 #			title = line
 			
-			print """<span class="num" >%d.</span> """ % (n + i * LINES)
-			if form.has_key("thumb"):
-				print """<img src="http://i.ytimg.com/vi/%s/1.jpg" />""" %id
-			print """<a href="http://youtube.com/watch?v=%s">""" % id
-	#		print """<img src="http://i.ytimg.com/vi/%s/0.jpg" /><br/> """ % id
-	#		print """<img src="http://i.ytimg.com/vi/%s/2.jpg" />""" %id
-	#		print """<img src="http://i.ytimg.com/vi/%s/3.jpg" />""" %id
-			print title
-			print """</a><br/>"""
-#			print """<br/><br/>http://youtube.com/watch?v=%s """ % id
+			if not is_bot:
+				print """<span class="num" >%d.</span> """ % (n + i * LINES)
+				if form.has_key("thumb"):
+					print """<img src="http://i.ytimg.com/vi/%s/1.jpg" />""" %id
+				print """<a href="http://youtube.com/watch?v=%s">""" % id
+		#		print """<img src="http://i.ytimg.com/vi/%s/0.jpg" /><br/> """ % id
+		#		print """<img src="http://i.ytimg.com/vi/%s/2.jpg" />""" %id
+		#		print """<img src="http://i.ytimg.com/vi/%s/3.jpg" />""" %id
+				print title
+				print """</a><br/>"""
+	#			print """<br/><br/>http://youtube.com/watch?v=%s """ % id
+			else:
+				print """\"%s\",""" % id
+			
 			n += 1
 			
 			if n % 128 == 0:
@@ -147,13 +157,16 @@ if __name__ == "__main__":
 			
 #		f.close()
 		
-		print_pager(page, len(l) * LINES / LINES_PER_PAGE, form)		
+		if not is_bot:
+			print_pager(page, len(l) * LINES / LINES_PER_PAGE, form)		
 		
-		print "<code><small>"
-		print p.communicate()[1].replace("\n", "<br/>")
-		print "</small></code>"
+			print "<code><small>"
+			print p.communicate()[1].replace("\n", "<br/>")
+			print "</small></code>"
 		
-		print """</body></html>"""
+			print """</body></html>"""
+		else:
+			print """null])"""
 		
 	except:
 		print "Status: 500 Internal server error"

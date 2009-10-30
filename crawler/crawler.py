@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """YouTube API Data Crawler"""
 
 # Copyright (C) 2009 Christopher Foo <chris.foo@gmail.com>
@@ -41,6 +43,7 @@ import cStringIO as StringIO
 
 import database
 import ytextract
+import http_server
 
 class Crawler:
 	CRAWL_QUEUE_FILE = "./data/queue.pickle"
@@ -48,11 +51,11 @@ class Crawler:
 	USER_TABLE_NAME = "usertable1"
 	QUEUE_SLEEP_TIME = .1 # seconds
 	WRITE_INTERVAL = 5
-	MAX_QUEUE_SIZE = 50
+	MAX_QUEUE_SIZE = 100
 	MAX_DOWNLOAD_THREADS = 4
 	DOWNLOAD_STALL_TIME = 1 # seconds
-	TRAVERSE_RATE = 0.05 # Crawl related videos
-	USER_TRAVERSE_RATE = 0.5 # crawl user favs, uploads, playlists
+	TRAVERSE_RATE = 0.01 # Crawl related videos
+	USER_TRAVERSE_RATE = 0.8 # crawl user favs, uploads, playlists
 	THROTTLE_STALL_TIME = 60 * 5 # seconds
 	RECENT_VIDS_URI = "http://gdata.youtube.com/feeds/api/standardfeeds/most_recent"
 	RECENT_VIDS_INTERVAL = 3600 # seconds
@@ -282,7 +285,10 @@ class Crawler:
 		elif len(self.crawl_queue) >= self.MAX_QUEUE_SIZE:
 			logging.debug("\tCrawl queue too large. Not traversing user.")
 		else:
-			self.traverse_user(username)
+			try:
+				self.traverse_user(username)
+			except:
+				logging.exception("Failed to get info for user %s" % username)
 		
 	
 	def traverse_video(self, video_id, entry=None):
@@ -554,7 +560,7 @@ def run():
 	
 	formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(module)s:%(funcName)s:%(lineno)d: %(message)s")
 	rfh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=4194304, backupCount=9)
-	rfh.setLevel(logging.INFO)
+	rfh.setLevel(logging.WARNING)
 	rfh.setFormatter(formatter)
 	logger.addHandler(rfh)
 	
@@ -566,6 +572,11 @@ def run():
 	
 	try:
 		crawler = Crawler()
+		
+		server = http_server.Server()
+		server.crawler = crawler
+		server.start()
+		
 		if len(crawler.crawl_queue) == 0:
 			s = raw_input("No videos to crawl in queue.\nEnter space deliminated video ids or Favorites, Playlist (not feed of playlists), Responses, Upload urls (prefix with http://) and press enter (leave blank for default video):")
 			l = s.split()
@@ -583,6 +594,7 @@ def run():
 		crawler.run()
 	except:
 		logging.exception("Run-time error")
+		sys.exit(1)
 	
 if __name__ == "__main__":
 	run()

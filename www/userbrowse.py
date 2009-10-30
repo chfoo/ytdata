@@ -61,7 +61,7 @@ if __name__ == "__main__":
 			f = p.stdin
 			
 		i = 0
-		for row in db.conn.execute("SELECT username FROM %s" % db.USER_TABLE_NAME):
+		for row in db.conn.execute("SELECT username FROM %s ORDER BY LOWER(username)" % db.USER_TABLE_NAME):
 			if k >= skip_k:
 				f.write(row[0].encode("utf-8"))
 				f.write("\n")
