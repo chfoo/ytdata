@@ -23,9 +23,7 @@ import threading
 import BaseHTTPServer
 import time
 import cgi
-import cgitb
 import logging
-cgitb.enable()
 import urlparse
 
 class Server(threading.Thread):
@@ -62,9 +60,7 @@ class HTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 			self.wfile.write("""<html><body>""")
 			self.wfile.write(self.__dict__)
 #			self.wfile.write(form.__dict__)
-			r = self.server.crawler.vids_crawled_session / (time.time() - self.server.crawler.start_time)
-			self.wfile.write("""%f videos per second; %d this session""" %
-				(r, self.server.crawler.vids_crawled_session))
+			self.wfile.write(self.server.crawler.get_stats_string())
 			self.wfile.write("""<br/>""")
 			self.wfile.write("""<form action="?" method="get">
 				<input type="text" name="insert" />
@@ -73,12 +69,8 @@ class HTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 		
 			if "insert" in query:
 				i = query["insert"][0]
-				if i.startswith("http://"):
-					self.wfile.write("Adding feed %s" % i)
-					self.server.crawler.add_uri_to_crawl(i)
-				else:
-					self.wfile.write("Adding video %s" % i)
-					self.server.crawler.add_uri_to_crawl(None, video_id=i)
+				self.wfile.write("Adding %s" % i)
+				self.server.crawler.add_to_crawl(i)
 		
 			self.wfile.write("""</body></html>""")
 	

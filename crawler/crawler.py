@@ -40,10 +40,13 @@ import shutil
 import httplib
 import gzip
 import cStringIO as StringIO
+import threading
+import Queue as queue
 
 import database
 import ytextract
 import http_server
+import connections
 
 class Crawler:
 	CRAWL_QUEUE_FILE = "./data/queue.pickle"
@@ -51,11 +54,11 @@ class Crawler:
 	USER_TABLE_NAME = "usertable1"
 	QUEUE_SLEEP_TIME = .1 # seconds
 	WRITE_INTERVAL = 5
-	MAX_QUEUE_SIZE = 100
+	MAX_QUEUE_SIZE = 50
 	MAX_DOWNLOAD_THREADS = 4
 	DOWNLOAD_STALL_TIME = 1 # seconds
-	TRAVERSE_RATE = 0.01 # Crawl related videos
-	USER_TRAVERSE_RATE = 0.8 # crawl user favs, uploads, playlists
+	TRAVERSE_RATE = 0.04 # Crawl related videos
+	USER_TRAVERSE_RATE = 0.1 # crawl user favs, uploads, playlists
 	THROTTLE_STALL_TIME = 60 * 5 # seconds
 	RECENT_VIDS_URI = "http://gdata.youtube.com/feeds/api/standardfeeds/most_recent"
 	RECENT_VIDS_INTERVAL = 3600 # seconds
@@ -65,29 +68,25 @@ class Crawler:
 		# A list of [feed uri string, video id, referring video id]
 		if os.path.exists(self.CRAWL_QUEUE_FILE):
 			f = open(self.CRAWL_QUEUE_FILE, "r")
-			self.crawl_queue = pickle.load(f) 
+			self.crawl_queue = pickle.load(f) # list of video ids and urls
 			f.close()
 		else:
 			logging.warning("Crawl queue file not found. Queue is empty")
 			self.crawl_queue = []
 		
 		self.db = database.Database()
-		self.httpclient = HTTPClient()
+		self.httpclient = connections.HTTPClient()
 		self.yt_service = gdata.youtube.service.YouTubeService(
-			http_client=self.httpclient, )
-#		self.yt_service.http_client = self.httpclient
+			http_client=self.httpclient)
 		self.running = False
 		self.write_counter = 0 # Counter for write interval
-#		self.db_insert_queue = [] # List of arguements to be inserted into db
-#		self.db_update_queue = []
-#		self.video_traversed_table = None # anydbm
-#		self.user_traversed_table = None # anydmb
-#		self.playlist_traversed_table = None # anydbm
-		self.download_threads = []
-		self.entry_queue = [] # A list of YouTube Entry to be inserted into db
-		self.lock = threading.Lock()
+		self.entry_queue = queue.Queue(0) # YouTube video Entrys to be processed
+		self.user_entry_queue = queue.Queue(0) # user entries to be be processed
+		self.username_queue = queue.Queue(0) # usernames to be inserted
+		self.crawl_sync_queue = queue.Queue(0) # syncronized crawl_queue
 		self.throttle_required = False
 		self.throttle_next_time = None
+		self.tasks = []
 	
 	def run(self):
 		logging.info("Running")
@@ -95,10 +94,16 @@ class Crawler:
 		
 		self.vids_crawled_session = 0
 		self.start_time = time.time()
-#		self._setup_cache()
-		recent_vids_next_time = time.time() + self.RECENT_VIDS_INTERVAL
 		
-		while self.running and (len(self.crawl_queue) > 0 or len(self.download_threads) > 0 or len(self.entry_queue) > 0):
+		# time in the future when we fetch new recent videos
+		recent_vids_next_time = time.time() + self.RECENT_VIDS_INTERVAL 
+		
+		while self.running and (\
+			len(self.crawl_queue) > 0 \
+			or len(self.tasks) > 0 \
+			or not self.entry_queue.empty() \
+			or not self.username_queue.empty() ):
+			
 			logging.debug("Run iteration")
 			
 			if not self.throttle_required:
@@ -111,7 +116,14 @@ class Crawler:
 					self.process_crawl_queue_item()
 			
 			self.process_entries()
-			self.process_downloaders()
+			self.process_user_entry_queue()
+			self.process_username_queue()
+			self.process_tasks()
+			
+			if random.random() < self.TRAVERSE_RATE:
+				username = self.get_username()
+				if username is not None:
+					self.traverse_user(username)
 			
 			if not self.throttle_required:
 				self.write_counter += 1
@@ -120,8 +132,9 @@ class Crawler:
 				self.write_state()
 				self.write_counter = 0
 			
-			r = self.vids_crawled_session / (time.time() - self.start_time)
-			logging.info("Crawl rate: new %f videos per second (%d total this session)" % (r, self.vids_crawled_session))
+			
+			logging.info(self.get_stats_string())
+			
 			if len(self.crawl_queue) == 0:
 				logging.debug("Sleeping for %s seconds" % self.DOWNLOAD_STALL_TIME)
 				time.sleep(self.DOWNLOAD_STALL_TIME)
@@ -143,8 +156,6 @@ class Crawler:
 		:Return:
 			`boolean`
 		"""
-		#video_id = video_id.encode("utf-8")
-		#return video_id in self.video_traversed_table
 		
 		r = self.db.conn.execute("SELECT 1 FROM %s WHERE id = ? LIMIT 1" % self.db.TABLE_NAME, [video_id]).fetchone()
 		return r is not None and r[0] == 1
@@ -155,24 +166,40 @@ class Crawler:
 		:Return:
 			`boolean`
 		"""
-#		video_id = video_id.encode("utf-8")
-#		r = (video_id in self.video_traversed_table and self.video_traversed_table[video_id])
+		
 		r = self.db.conn.execute("SELECT traversed FROM %s WHERE id = ? LIMIT 1" % self.db.TABLE_NAME, [video_id]).fetchone()
 		return r is not None and r[0] == 1
 	
 	def user_in_database(self, username):
+		"""Get whether user is in database"""
+		
 		r = self.db.conn.execute("SELECT 1 FROM %s WHERE username = ? LIMIT 1" % self.db.USER_TABLE_NAME, [username]).fetchone()
 		return r is not None and r[0] == 1
 		
 	def user_was_traversed(self, username):
+		"""Get whether use was traversed"""
+		
 		r = self.db.conn.execute("SELECT traversed FROM %s WHERE username = ? LIMIT 1" % self.db.USER_TABLE_NAME, [username]).fetchone()
 		return r is not None and r[0] == 1
+	
+	def get_username(self):
+		"""Return a username which has not been traversed"""
 		
+		r = self.db.conn.execute("SELECT username FROM %s WHERE traversed IS NULL LIMIT 1" % self.db.USER_TABLE_NAME, []).fetchone()[0]
+		return r
 	
 	def process_crawl_queue_item(self):
 		"""Process a Feed uri to crawl"""
 		
-		uri, video_id, referred_by = self.crawl_queue[0]
+		while not self.crawl_sync_queue.empty():
+			self.crawl_queue.append(self.crawl_sync_queue.get(block=True))
+		
+		if isinstance(self.crawl_queue[0], str):
+			uri = self.crawl_queue[0]
+			video_id = None
+			referred_by = None
+		else:
+			uri, video_id, referred_by = self.crawl_queue[0]
 		logging.info("Crawling %s %s" % (uri, video_id))
 		
 		# Should be a single video
@@ -182,15 +209,11 @@ class Crawler:
 			logging.debug("\tHas seen: %s; Was traversed: %s" % (has_seen, was_traversed))
 			
 			if not has_seen:
-				try:
-					entry = self.yt_service.GetYouTubeVideoEntry(video_id=video_id)
-					logging.debug("\tAdding to entry queue")
-					self.process_entry(entry, referred_by)
-			
-				except gdata.service.RequestError, d:
-					logging.exception("\tError getting YouTube video entry")
-					logging.warning("\tSkipping %s due to YouTube service error" % video_id)
-					self.check_error(d)
+				task = Task("fetch-entry", video_id=video_id,
+					yt_service=self.yt_service,
+					queue=self.entry_queue)
+				task.start()
+				self.tasks.append(task)
 		
 			if not was_traversed:
 				logging.debug("\tTraversing")
@@ -201,52 +224,31 @@ class Crawler:
 		# Should be a playlist 
 		else:
 			
-			if len(self.download_threads) >= self.MAX_DOWNLOAD_THREADS:
-				logging.debug("\tToo many download threads (Now: %d; Max: %d). Stalling for %s seconds." % (len(self.download_threads), self.MAX_DOWNLOAD_THREADS, self.DOWNLOAD_STALL_TIME))
-			while len(self.download_threads) >= self.MAX_DOWNLOAD_THREADS:
-				self.process_downloaders()
+			if len(self.tasks) >= self.MAX_DOWNLOAD_THREADS:
+				logging.debug("\tToo many download threads (Now: %d; Max: %d). Stalling for %s seconds." % (len(self.tasks), self.MAX_DOWNLOAD_THREADS, self.DOWNLOAD_STALL_TIME))
+			while len(self.tasks) >= self.MAX_DOWNLOAD_THREADS:
+				self.process_tasks()
 				time.sleep(self.DOWNLOAD_STALL_TIME)
 			
-			d1 = ytextract.FeedDownloader(uri, self.yt_service, referred_by)
-			d1.start()
-		
-			self.download_threads.append(d1)
-		
+			task = Task("fetch-feed", uri=uri, yt_service=self.yt_service,
+			 	referred_by=referred_by, queue=self.entry_queue)
+			task.start()
+			self.tasks.append(task)
 		
 		return self.crawl_queue.pop(0)
 	
-	def process_downloaders(self):
-		for downloader in self.download_threads:
-			if not downloader.isAlive():
-				logging.debug("A download thread has completed")
-				
-				self.check_error(downloader.error_dict)
-				
-				self.download_threads.remove(downloader)
-			
-			# http://jessenoller.com/2009/02/01/python-threads-and-the-global-interpreter-lock/
-			self.lock.acquire()
-			entries = []
-			try:
-				entries = downloader.entries
-				downloader.entries = []
-			finally:
-				self.lock.release()
-				
-			for entry in entries:
-				self.process_entry(entry, downloader.referred_by)
-			
-#			time.sleep(0.5)
 	
 	def process_entries(self):
-		for entry in self.entry_queue:
-			self.entry_queue.remove(entry)
-			self.process_entry(entry)
+		while not self.entry_queue.empty():
+			self.process_entry(self.entry_queue.get(block=True))
 		
-#		self.process_db_queue()
 	
 	def process_entry(self, entry, referred_by=None):
 		d = ytextract.extract_from_entry(entry)
+		
+		if referred_by is None and entry.referred_by is not None:
+			referred_by = entry.referred_by
+			
 		d["referred_by"] = referred_by
 		logging.info("Processing entry %s" % d["id"])
 		logging.debug("\tData: %s" % d)
@@ -254,11 +256,8 @@ class Crawler:
 		if self.in_database(d["id"]):
 			logging.debug("\tAlready database. Not updating")
 		else:
-			#logging.info("\tNew. Queueing for database insert")
-			#self.db_insert_queue.append(d)
 			logging.info("\tNew! Adding to database.")
 			self.db_video_insert(d)
-#			self.video_traversed_table[d["id"]] = False
 			self.vids_crawled_session += 1
 		
 		if self.was_traversed(d["id"]):
@@ -289,7 +288,14 @@ class Crawler:
 				self.traverse_user(username)
 			except:
 				logging.exception("Failed to get info for user %s" % username)
-		
+	
+	def process_username_queue(self):
+		while not self.username_queue.empty():
+			username = self.username_queue.get(block=True)
+			if not self.user_in_database(username):
+				logging.debug("Insert username %s into database" % username)
+				self.db.conn.execute("""INSERT INTO %s (username)
+					VALUES (?)""" % self.db.USER_TABLE_NAME, [username])
 	
 	def traverse_video(self, video_id, entry=None):
 		"""Queue related and video responses feed, mark video as traversed"""
@@ -300,26 +306,24 @@ class Crawler:
 
 		response_uri = "http://gdata.youtube.com/feeds/api/videos/%s/responses?start-index=%s&max-results=%s" % (video_id, 1, 50)
 
-							
-		
 		self.add_uri_to_crawl(related_uri, referred_by=video_id)
 		self.add_uri_to_crawl(response_uri, referred_by=video_id)
 		
 		logging.debug("\tMarking %s as traversed" % video_id)
 		self.db.conn.execute("""UPDATE %s SET traversed=? WHERE
 			id=?""" % self.TABLE_NAME, (1, video_id))
-#		self.video_traversed_table[video_id] = True
 		
 		logging.debug("\tDone traversing %s" % video_id)
 		
 	
-	def traverse_user(self, username):
-		logging.info("Traversing user %s" % username)
-		try:
-			entry = self.yt_service.GetYouTubeUserEntry(username=username.encode("utf-8"))
-		
+	def process_user_entry_queue(self):
+		while not self.user_entry_queue.empty():
+			entry = self.user_entry_queue.get(block=True)
+			
 			d = ytextract.extract_from_user_entry(entry)
 			logging.debug("\tGot user data %s" % d)
+			
+			username = d["username"]
 			
 			if self.user_in_database(username):
 				logging.debug("\tUpdate user data into database")
@@ -331,34 +335,25 @@ class Crawler:
 				self.db.conn.execute("""INSERT INTO %s (username, videos_watched)
 					VALUES (?,?)""" % self.db.USER_TABLE_NAME, 
 					(username, d["videos_watched"]))
-			
-		except gdata.service.RequestError, d:
-			logging.exception("YouTube request error for user %s" % username)
-			logging.warning("Skipping user %s statistics " % username)
-			
-			self.check_error(d)
-			
-			if not self.user_in_database(username):
-				logging.debug("\tInsert username into database")
-			
-				self.db.conn.execute("""INSERT INTO %s (username)
-					VALUES (?)""" % self.db.USER_TABLE_NAME, [username])
-			
+	
+	def traverse_user(self, username):
+		"""Get user stats, favorites, playlists, subscribers"""
 		
-		playlist_uri = "http://gdata.youtube.com/feeds/api/users/%s/playlists?start-index=1&max-results=50" % username
-		try:
-			playlists = self.yt_service.GetYouTubePlaylistFeed(uri=playlist_uri)
+		logging.info("Traversing user %s" % username)
+		task = Task("fetch-user", username=username.encode("utf-8"),
+			yt_service=self.yt_service, queue=self.user_entry_queue)
+		task.start()
+		self.tasks.append(task)
 		
-			for entry in playlists.entry:
-				for feed_link in entry.feed_link:
-					if feed_link.rel == "http://gdata.youtube.com/schemas/2007#playlist":
-						uri = feed_link.href
-						self.add_uri_to_crawl(uri)
+		task = Task("fetch-user-playlists", username=username.encode("utf-8"),
+			yt_service=self.yt_service, queue=self.crawl_sync_queue)
+		task.start()
+		self.tasks.append(task)
 		
-		except gdata.service.RequestError, d:
-			logging.exception("Unable to get playlists for %s " % username)
-			self.check_error(d)
-			logging.warning("Skipping playlists for %s" % username)
+		task = Task("fetch-user-subscribers", username=username.encode("utf-8"),
+			http_client=self.httpclient, queue=self.username_queue)
+		task.start()
+		self.tasks.append(task)
 		
 		fav_uri = "http://gdata.youtube.com/feeds/api/users/%s/favorites?start-index=1&max-results=50" % username
 		uploads_uri = "http://gdata.youtube.com/feeds/api/users/%s/uploads?start-index=1&max-results=50" % username
@@ -366,7 +361,6 @@ class Crawler:
 		self.add_uri_to_crawl(uploads_uri)
 		
 		logging.debug("\tMarking user %s as traversed" % username)
-#		self.user_traversed_table[username.encode("utf-8")] = True
 		self.db.conn.execute("""UPDATE %s SET traversed=? WHERE
 			username=?""" % self.db.USER_TABLE_NAME, (1, username))
 
@@ -374,6 +368,15 @@ class Crawler:
 		logging.debug("Adding uri to queue %s, video_id %s, referred_by %s" % (uri, video_id, referred_by))
 		self.crawl_queue.append([uri, video_id, referred_by])
 	
+	def add_to_crawl(self, s):
+		"""Add a video id or a API URL to crawl"""
+		
+		if s.startswith("http://"):
+			logging.info("Adding feed %s" % i)
+			crawler.add_uri_to_crawl(s)
+		else:
+			logging.info("Adding video %s" % i)
+			crawler.add_uri_to_crawl(None, video_id=s)
 	
 	def db_video_insert(self, d):
 		logging.debug("Database video insert")
@@ -385,7 +388,6 @@ class Crawler:
 			:date_published, :length, :title,
 			:referred_by, :favorite_count)""" % self.TABLE_NAME, 
 			d)
-	
 		
 	def stop(self):
 		logging.info("Stopping")
@@ -429,128 +431,93 @@ class Crawler:
 		
 		logging.info("OK, let's go.")
 	
+	def process_tasks(self):
+		for task in self.tasks:
+			if not task.is_alive() and task.error_dict is not None:
+				self.check_error(task.error_dict)
+			
+			if not task.is_alive():
+				self.tasks.remove(task)
+	
+	def get_stats_string(self):
+		r = self.vids_crawled_session / (time.time() - self.start_time)
+		return "Crawl rate: new %f videos per second (%d total this session)" % (r, self.vids_crawled_session)
+	
 	def quit(self):
 		logging.info("Quiting..")
 		self.running = False
 		self.write_state()
 		self.db.close()
 
-class HTTPClient:
-	"""Connection pooling"""
+class Task(threading.Thread):
+	"""Task for downloading"""
 	
-	def __init__(self):
-		self.num_connections = Crawler.MAX_DOWNLOAD_THREADS + 1
-		self.connections = []
-		self.in_use = {}
-		
-		logging.info("Starting up %d connections" % self.num_connections)
-		for i in range(self.num_connections):
-			self.init_connection()
-		
-		self.i = 0
+	def __init__(self, task, queue=None, uri=None, yt_service=None, referred_by=None, username=None, video_id=None, http_client=None):
+		threading.Thread.__init__(self)
+		self.setDaemon(True)
+		self.task = task
+		self.queue = queue
+		self.yt_service = yt_service
+		self.referred_by = referred_by
+		self.uri = uri
+		self.error_dict = None
+		self.username = username
+		self.video_id = video_id
+		self.http_client = http_client
 	
-	def init_connection(self):
-		logging.debug("Setup connection...")
-		conn = httplib.HTTPConnection("gdata.youtube.com")
-		self.connections.append(conn)
-		conn.connect()
-		logging.debug("\tOK")
-	
-	def request(self, method, url, data=None, headers={}):
-		while True:
-			if len(self.connections) < self.num_connections:
-				self.init_connection()
-				self.i = 0
-			
-			if self.i >= self.num_connections:
-				self.i = 0
-			
-			i = self.i
-			connection = self.connections[i]
-			if connection not in self.in_use or \
-			not self.in_use[connection]:
-				try:
-#					headers["Accept-encoding"] = "gzip"
-#					
-#					headers["User-Agent"] = headers.get("User-Agent", "") + \
-#						"chfoo-crawler (gzip, http://www.student.cs.uwaterloo.ca/~chfoo/ytdata/)"
-					
-					logging.debug("HTTP request [%d] %s %s %s %s" % (i, method, url, data, headers))
-					self.in_use[connection] = True
-#					connection.request(method, str(url), data, headers)
-					connection.putrequest(method, str(url), 
-						skip_accept_encoding=True)
-					for key, value in headers.iteritems():
-						connection.putheader(key, value)
-					connection.endheaders()
-					break
-			
-				except httplib.HTTPException:
-					# Probably got disconnected
-					logging.debug("\tHTTP exception")
-					logging.exception("HTTP exception")
-					connection.close()
-					if connection in self.in_use:
-						del self.in_use[connection] 
-					if connection in self.connections:
-						self.connections.remove(connection)
-			
-			logging.debug("\tHTTP Wait 1")
-			self.i += 1
-			time.sleep(0.01)
+	def run(self):
+		try:
+			if self.task == "fetch-entry":
+				logging.debug("Fetch single entry")
+				entry = self.yt_service.GetYouTubeVideoEntry(video_id=self.video_id)
+				entry.referred_by = self.referred_by
+				self.queue.put(entry, block=True)
 		
-		r2_time = time.time()
-		while time.time() - r2_time < 60:
-			try:
-				response = connection.getresponse()
-				logging.debug("\tGot response")
-				self.in_use[connection] = False
-#				logging.debug(response.getheaders())
-				if response.getheader("Content-Encoding", None) == "gzip":
-					logging.debug("\tGzip encoding response")
-					string_buf = StringIO.StringIO(response.read())
-					g_o = gzip.GzipFile(fileobj=string_buf)
-					
-					class DummyResponse:
-						pass
-					dummy_response = DummyResponse()
-					dummy_response.file = g_o
-					dummy_response.read = lambda b: dummy_response.file.read(b)
-					dummy_response.getheader = response.getheader
-					dummy_response.getheaders = response.getheaders
-					dummy_response.msg = response.msg
-					dummy_response.version = response.version
-					dummy_response.status = response.status
-					dummy_response.reason = response.reason
+			elif self.task == "fetch-feed":
+				fetcher = ytextract.FeedFetcher(self.uri, self.yt_service, 
+					self.referred_by)
 				
-				else:
-					return response
-			except httplib.ResponseNotReady:
-				logging.debug("\tHTTP response not ready")
+				for e in fetcher.fetch():
+					e.referred_by = self.referred_by
+					self.queue.put(e, block=True)
 			
-			except httplib.HTTPException:
-				# Probably got disconnected
-				logging.debug("\tHTTP exception")
-				logging.exception("HTTP exception")
-				break
-			
-			
-			logging.debug("\tHTTP Wait 2")
-			time.sleep(0.01)
+				self.error_dict = fetcher.error_dict
 		
-		# Retry request
-		connection.close()
-		if connection in self.in_use:
-			del self.in_use[connection] 
-		if connection in self.connections:
-			self.connections.remove(connection)
-		return self.request(method, url, data, headers)
+			elif self.task == "fetch-user-playlists":
+				logging.debug("Get %s's playlists" % self.username)
+			
+				playlist_uri = "http://gdata.youtube.com/feeds/api/users/%s/playlists?start-index=1&max-results=50" % self.username
+				playlists = self.yt_service.GetYouTubePlaylistFeed(uri=playlist_uri)
+		
+				for entry in playlists.entry:
+					for feed_link in entry.feed_link:
+						if feed_link.rel == "http://gdata.youtube.com/schemas/2007#playlist":
+							uri = feed_link.href
+							self.queue.put([uri, None, self.referred_by], block=True)
+			
+			elif self.task == "fetch-user":
+				entry = self.yt_service.GetYouTubeUserEntry(username=self.username.encode("utf-8"))	
+				
+				entry.referred_by = self.referred_by
+				self.queue.put(entry)
+		
+			elif self.task == "fetch-user-subscribers":
+				for u in ytextract.fetch_subscribers(self.username, self.http_client):
+					self.queue.put(u, block=True)
+			
+			else:
+				logging.warning("Unknown task")
+		
+		except gdata.service.RequestError, d:
+			self.error_dict = d
+			logging.exception("YouTube error (task: %s" % self.task)
 	
 def run():
 	LOG_FILE = "data/log"
 	
 	# Catch KeyboardInterrupt for threads
 	def sigint_handler(signum, frame):
+		sys.exit(0)
 		raise KeyboardInterrupt
 	
 	signal.signal(signal.SIGINT, sigint_handler)
@@ -582,15 +549,10 @@ def run():
 			l = s.split()
 			if len(l) == 0:
 				print "Using default jNQXAC9IVRw"
-				crawler.add_uri_to_crawl(None, video_id="jNQXAC9IVRw")
+				crawler.add_to_crawl("jNQXAC9IVRw")
 			else:
 				for i in l:
-					if i.startswith("http://"):
-						print "Adding feed", i
-						crawler.add_uri_to_crawl(i)
-					else:
-						print "Adding video", i
-						crawler.add_uri_to_crawl(None, video_id=i)
+					crawler.add_to_crawl(i)
 		crawler.run()
 	except:
 		logging.exception("Run-time error")

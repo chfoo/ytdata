@@ -23,33 +23,25 @@ import time
 import datetime
 import re
 import logging
-import threading
 import traceback
 import gdata.service
 import urlparse
 import cgi
+import lxml.html
 
-class FeedDownloader(threading.Thread):
+class FeedFetcher:
 	"""Downloads all the `Entry` in a feed by paging though it as necessary
-	
-	:attributes:
-		entires : `list`
-			A list of all the entry objects
 	"""
 	
 	FETCH_DELAY = 1 # seconds
 	
 	def __init__(self, feed_uri, yt_service, referred_by=None):
-		threading.Thread.__init__(self)
-		logging.debug("New download thread")
-		self.setDaemon(True)
 		self.feed_uri = feed_uri
-		self.entries = []
 		self.yt_service = yt_service
 		self.referred_by = referred_by
 		self.error_dict = None
 	
-	def run(self):
+	def fetch(self):
 		feed_uri = self.feed_uri
 		yt_service = self.yt_service
 		
@@ -68,7 +60,8 @@ class FeedDownloader(threading.Thread):
 				logging.warning("Skipping %s due to YouTube service error" % feed_uri)
 				break
 		
-			self.entries.extend(current_feed.entry)
+			for entry in current_feed.entry:
+				yield entry
 			
 			feed_uri = None
 			for link in current_feed.link:
@@ -80,6 +73,28 @@ class FeedDownloader(threading.Thread):
 				break
 			
 			time.sleep(self.FETCH_DELAY)
+
+def fetch_subscribers(username, http_client):
+	URL = "http://www.youtube.com/profile?user=%s&view=subscribers&start=%d"
+	FETCH_DELAY = 1
+	i = 0
+	while True:
+		logging.debug("Fetching subscribers %s,%d" % (username, i))
+		response = http_client.request("GET", URL % (username, i))
+		tree = lxml.html.fromstring(response.read())
+		el = tree.xpath("//*[@id='user_subscribers-body']/div/div/center/a")
+		
+#		print "el", el
+		
+		for e in el:
+			yield e.get("title")
+		
+		if len(el) == 40 and i < 1000:
+			i += 40
+			time.sleep(FETCH_DELAY)
+		else:
+			break
+	
 
 def extract_from_entry(entry):
 	"""Return a `dict` of useful info"""
@@ -187,4 +202,8 @@ if __name__ == "__main__":
 	print convert_time("2007-10-15T15:39:34.000-07:00")
 	print time.gmtime(convert_time("2007-10-15T15:39:34.000-07:00"))
 
+	import httplib
+	import connections
+	for u in fetch_subscribers("chfoo0", connections.HTTPClient()):
+		print u
 
