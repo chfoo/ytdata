@@ -52,16 +52,20 @@ class Crawler:
 	CRAWL_QUEUE_FILE = "./data/queue.pickle"
 	TABLE_NAME = "vidtable1"
 	USER_TABLE_NAME = "usertable1"
-	QUEUE_SLEEP_TIME = .1 # seconds
-	WRITE_INTERVAL = 5
+#	QUEUE_SLEEP_TIME = .1 # seconds
+	ITERATION_SLEEP_TIME = 0.1 # seconds
+	WRITE_INTERVAL = 60 # seconds
 	MAX_QUEUE_SIZE = 50
 	MAX_DOWNLOAD_THREADS = 4
-	DOWNLOAD_STALL_TIME = 1 # seconds
+#	DOWNLOAD_STALL_TIME = 1 # seconds
+	THROTTLE_SLEEP_TIME = 20 # seconds; for iteration sleep time
 	TRAVERSE_RATE = 0.04 # Crawl related videos
-	USER_TRAVERSE_RATE = 0.1 # crawl user favs, uploads, playlists
+	USER_TRAVERSE_RATE = 0.2 # crawl user favs, uploads, playlists
 	THROTTLE_STALL_TIME = 60 * 5 # seconds
 	RECENT_VIDS_URI = "http://gdata.youtube.com/feeds/api/standardfeeds/most_recent"
-	RECENT_VIDS_INTERVAL = 3600 # seconds
+	RECENT_VIDS_INTERVAL = 60 * 45 # seconds
+	MIGHT_AS_WELL_RATE = 0.1 # decrease this for disk performance
+	PROCESS_BLOCK_SIZE = 20 # number of stuff to process in one stage
 	
 	def __init__(self):
 		# Crawl queue:
@@ -79,7 +83,7 @@ class Crawler:
 		self.yt_service = gdata.youtube.service.YouTubeService(
 			http_client=self.httpclient)
 		self.running = False
-		self.write_counter = 0 # Counter for write interval
+#		self.write_counter = 0 # Counter for write interval
 		self.entry_queue = queue.Queue(0) # YouTube video Entrys to be processed
 		self.user_entry_queue = queue.Queue(0) # user entries to be be processed
 		self.username_queue = queue.Queue(0) # usernames to be inserted
@@ -94,6 +98,7 @@ class Crawler:
 		
 		self.vids_crawled_session = 0
 		self.start_time = time.time()
+		self.last_write_time = time.time()
 		
 		# time in the future when we fetch new recent videos
 		recent_vids_next_time = time.time() + self.RECENT_VIDS_INTERVAL 
@@ -112,7 +117,8 @@ class Crawler:
 					self.add_uri_to_crawl(self.RECENT_VIDS_URI)
 					recent_vids_next_time = time.time() + self.RECENT_VIDS_INTERVAL
 			
-				if len(self.crawl_queue) > 0:
+				if len(self.crawl_queue) > 0 \
+				and len(self.tasks) < self.MAX_DOWNLOAD_THREADS:
 					self.process_crawl_queue_item()
 			
 			self.process_entries()
@@ -120,31 +126,27 @@ class Crawler:
 			self.process_username_queue()
 			self.process_tasks()
 			
-			if random.random() < self.TRAVERSE_RATE:
+			if random.random() < self.TRAVERSE_RATE \
+			and len(self.crawl_queue) < self.MAX_QUEUE_SIZE / 2:
 				username = self.get_username()
 				if username is not None:
 					self.traverse_user(username)
 			
-			if not self.throttle_required:
-				self.write_counter += 1
+#			if not self.throttle_required:
+#				self.write_counter += 1
 				
-			if self.write_counter >= self.WRITE_INTERVAL:
+			if time.time() - self.last_write_time >= self.WRITE_INTERVAL:
 				self.write_state()
-				self.write_counter = 0
+#				self.write_counter = 0
+				self.last_write_time = time.time()
+				logging.info(self.get_stats_string())
 			
-			
-			logging.info(self.get_stats_string())
-			
-			if len(self.crawl_queue) == 0:
-				logging.debug("Sleeping for %s seconds" % self.DOWNLOAD_STALL_TIME)
-				time.sleep(self.DOWNLOAD_STALL_TIME)
-			else:
-				logging.debug("Sleeping for %s seconds" % self.QUEUE_SLEEP_TIME)
-				time.sleep(self.QUEUE_SLEEP_TIME)
+			logging.debug("Sleeping for %s seconds" % self.ITERATION_SLEEP_TIME)
+			time.sleep(self.ITERATION_SLEEP_TIME)
 			
 			if self.throttle_required:
 				logging.info("Throttle required")
-				time.sleep(self.DOWNLOAD_STALL_TIME * 10)
+				time.sleep(self.THROTTLE_SLEEP_TIME)
 				self.throttle_required = time.time() < self.throttle_next_time
 			
 		self.write_state()
@@ -224,12 +226,6 @@ class Crawler:
 		# Should be a playlist 
 		else:
 			
-			if len(self.tasks) >= self.MAX_DOWNLOAD_THREADS:
-				logging.debug("\tToo many download threads (Now: %d; Max: %d). Stalling for %s seconds." % (len(self.tasks), self.MAX_DOWNLOAD_THREADS, self.DOWNLOAD_STALL_TIME))
-			while len(self.tasks) >= self.MAX_DOWNLOAD_THREADS:
-				self.process_tasks()
-				time.sleep(self.DOWNLOAD_STALL_TIME)
-			
 			task = Task("fetch-feed", uri=uri, yt_service=self.yt_service,
 			 	referred_by=referred_by, queue=self.entry_queue)
 			task.start()
@@ -239,9 +235,12 @@ class Crawler:
 	
 	
 	def process_entries(self):
-		while not self.entry_queue.empty():
+		for i in range(self.PROCESS_BLOCK_SIZE):
+			if self.entry_queue.empty():
+				break
+			
 			self.process_entry(self.entry_queue.get(block=True))
-		
+			
 	
 	def process_entry(self, entry, referred_by=None):
 		d = ytextract.extract_from_entry(entry)
@@ -272,10 +271,11 @@ class Crawler:
 		
 		username = entry.author[0].name.text.decode("utf-8")
 		
-		if not self.user_in_database(username):
-			logging.debug("\tInsert username into database")
-			self.db.conn.execute("""INSERT INTO %s (username)
-				VALUES (?)""" % self.db.USER_TABLE_NAME, [username])
+		if random.random() < self.MIGHT_AS_WELL_RATE:
+			if not self.user_in_database(username):
+				logging.debug("\tInsert username into database")
+				self.db.conn.execute("""INSERT INTO %s (username)
+					VALUES (?)""" % self.db.USER_TABLE_NAME, [username])
 		
 		if self.user_was_traversed(username):
 			logging.debug("\tUser was already traversed.")
@@ -290,7 +290,10 @@ class Crawler:
 				logging.exception("Failed to get info for user %s" % username)
 	
 	def process_username_queue(self):
-		while not self.username_queue.empty():
+		for i in range(self.PROCESS_BLOCK_SIZE):
+			if self.username_queue.empty():
+				break
+			
 			username = self.username_queue.get(block=True)
 			if not self.user_in_database(username):
 				logging.debug("Insert username %s into database" % username)
@@ -317,7 +320,10 @@ class Crawler:
 		
 	
 	def process_user_entry_queue(self):
-		while not self.user_entry_queue.empty():
+		for i in range(self.PROCESS_BLOCK_SIZE):
+			if self.user_entry_queue.empty():
+				break
+			
 			entry = self.user_entry_queue.get(block=True)
 			
 			d = ytextract.extract_from_user_entry(entry)
@@ -350,6 +356,7 @@ class Crawler:
 		task.start()
 		self.tasks.append(task)
 		
+#		if random.random() < self.MIGHT_AS_WELL_RATE:
 		task = Task("fetch-user-subscribers", username=username.encode("utf-8"),
 			http_client=self.httpclient, queue=self.username_queue)
 		task.start()
@@ -506,7 +513,7 @@ class Task(threading.Thread):
 					self.queue.put(u, block=True)
 			
 			else:
-				logging.warning("Unknown task")
+				logging.warning("Unknown task %s" % self.task)
 		
 		except gdata.service.RequestError, d:
 			self.error_dict = d

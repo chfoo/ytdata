@@ -110,6 +110,7 @@ if __name__ == "__main__":
 			
 		i = 0
 		for row in db.conn.execute("SELECT id, title FROM %s" % db.TABLE_NAME):
+#		for row in db.conn.execute("SELECT id, title FROM %s ORDER BY id" % db.TABLE_NAME):
 #		for row in db.conn.execute("SELECT id FROM %s" % db.TABLE_NAME):
 			if k >= skip_k:
 				f.write(row[0])
