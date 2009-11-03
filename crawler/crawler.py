@@ -59,8 +59,8 @@ class Crawler:
 	MAX_DOWNLOAD_THREADS = 4
 #	DOWNLOAD_STALL_TIME = 1 # seconds
 	THROTTLE_SLEEP_TIME = 20 # seconds; for iteration sleep time
-	TRAVERSE_RATE = 0.04 # Crawl related videos
-	USER_TRAVERSE_RATE = 0.2 # crawl user favs, uploads, playlists
+	TRAVERSE_RATE = 0.06 # Crawl related videos
+	USER_TRAVERSE_RATE = 0.1 # crawl user favs, uploads, playlists
 	THROTTLE_STALL_TIME = 60 * 5 # seconds
 	RECENT_VIDS_URI = "http://gdata.youtube.com/feeds/api/standardfeeds/most_recent"
 	RECENT_VIDS_INTERVAL = 60 * 45 # seconds
@@ -136,10 +136,10 @@ class Crawler:
 #				self.write_counter += 1
 				
 			if time.time() - self.last_write_time >= self.WRITE_INTERVAL:
+				logging.info(self.get_stats_string())
 				self.write_state()
 #				self.write_counter = 0
 				self.last_write_time = time.time()
-				logging.info(self.get_stats_string())
 			
 			logging.debug("Sleeping for %s seconds" % self.ITERATION_SLEEP_TIME)
 			time.sleep(self.ITERATION_SLEEP_TIME)

@@ -21,6 +21,7 @@ __docformat__ = "restructuredtext en"
 
 import logging
 import httplib
+import httplib2 # http://code.google.com/p/httplib2/
 import time
 
 class HTTPClient:
@@ -40,7 +41,8 @@ class HTTPClient:
 	
 	def init_connection(self):
 		logging.debug("Setup connection...")
-		conn = httplib.HTTPConnection("gdata.youtube.com")
+#		conn = httplib.HTTPConnection("gdata.youtube.com")
+		conn = httplib2.HTTPConnectionWithTimeout("gdata.youtube.com")
 		self.connections.append(conn)
 		conn.connect()
 		logging.debug("\tOK")
@@ -61,8 +63,8 @@ class HTTPClient:
 				try:
 #					headers["Accept-encoding"] = "gzip"
 #					
-#					headers["User-Agent"] = headers.get("User-Agent", "") + \
-#						"chfoo-crawler (gzip, http://www.student.cs.uwaterloo.ca/~chfoo/ytdata/)"
+					headers["User-Agent"] = headers.get("User-Agent", "") + \
+						" chfoo-crawler (gzip, http://www.student.cs.uwaterloo.ca/~chfoo/ytdata/)"
 					
 					logging.debug("HTTP request [%d] %s %s %s %s" % (i, method, url, data, headers))
 					self.in_use[connection] = True
@@ -94,26 +96,8 @@ class HTTPClient:
 				response = connection.getresponse()
 				logging.debug("\tGot response")
 				self.in_use[connection] = False
-#				logging.debug(response.getheaders())
-				if response.getheader("Content-Encoding", None) == "gzip":
-					logging.debug("\tGzip encoding response")
-					string_buf = StringIO.StringIO(response.read())
-					g_o = gzip.GzipFile(fileobj=string_buf)
-					
-					class DummyResponse:
-						pass
-					dummy_response = DummyResponse()
-					dummy_response.file = g_o
-					dummy_response.read = lambda b: dummy_response.file.read(b)
-					dummy_response.getheader = response.getheader
-					dummy_response.getheaders = response.getheaders
-					dummy_response.msg = response.msg
-					dummy_response.version = response.version
-					dummy_response.status = response.status
-					dummy_response.reason = response.reason
-				
-				else:
-					return response
+				logging.debug("\t %s" % response.getheaders())
+				return response
 			except httplib.ResponseNotReady:
 				logging.debug("\tHTTP response not ready")
 			
