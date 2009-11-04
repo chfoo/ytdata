@@ -112,7 +112,11 @@ if __name__ == "__main__":
 					<input type="hidden" name="thumb" />
 					<input type="submit" value="Turn on thumbnail image"/></form>""" % page
 			else:
-				print """<br/>Thumbnail image is on.<br/><br/>"""
+				print """<br/>Thumbnail image is on. 
+				<form method="get" action="?">
+					<input type="hidden" name="page" value="%d"/>
+					<input type="submit" value="Turn off"/></form>
+				<br/><br/>""" % page
 		
 		else:
 			print """%s([""" % form.getfirst("callback", "callback")
@@ -161,7 +165,7 @@ if __name__ == "__main__":
 			print_pager(page, len(l) * LINES / LINES_PER_PAGE, form)		
 		
 			print "<code><small>"
-			print p.communicate()[1].replace("\n", "<br/>")
+			print p.communicate()[1].replace("\n", "<br/>").replace(" ", "&nbsp;")
 			print "</small></code>"
 		
 			print """</body></html>"""

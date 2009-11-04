@@ -98,29 +98,32 @@ if __name__ == "__main__":
 			os.remove(name)
 		
 		if len(sys.argv) >= 3:
-			skip_k = int(sys.argv[2])
+#			skip_k = int(sys.argv[2])
+			k = int(sys.argv[2])
 		else:
-			skip_k = 0
-		k = 0
+#			skip_k = 0
+			k = 0
+#		k = 0
 #		f = bz2.BZ2File(FILE % k, "w")
-		if not skip_k:
-			p = subprocess.Popen(["7za", "a", "-si", FILE % k],
-				stdin=subprocess.PIPE)
-			f = p.stdin
+#		if not skip_k:
+		p = subprocess.Popen(["7za", "a", "-si", FILE % k],
+			stdin=subprocess.PIPE)
+		f = p.stdin
 			
 		i = 0
-		for row in db.conn.execute("SELECT id, title FROM %s" % db.TABLE_NAME):
+		for row in db.conn.execute("SELECT id, title FROM %s LIMIT -1 OFFSET %d" 
+			% (db.TABLE_NAME, k * LINES)):
 #		for row in db.conn.execute("SELECT id, title FROM %s ORDER BY id" % db.TABLE_NAME):
 #		for row in db.conn.execute("SELECT id FROM %s" % db.TABLE_NAME):
-			if k >= skip_k:
-				f.write(row[0])
-				f.write(" ")
-				if row[1]:
-					f.write(row[1][:8].encode("utf-8"))
-					
-					if len(row[1]) > 16:
-						f.write(u"…".encode("utf-8"))
-					
+#			if k >= skip_k:
+			f.write(row[0])
+			f.write(" ")
+			if row[1]:
+				f.write(row[1][:8].encode("utf-8"))
+				
+				if len(row[1]) > 16:
+					f.write(u"…".encode("utf-8"))
+				
 				f.write("\n")
 				
 			i += 1
@@ -129,15 +132,15 @@ if __name__ == "__main__":
 				i = 0
 				k += 1
 				
-				if k > skip_k:
-					p.communicate()
+#				if k > skip_k:
+#					p.communicate()
 	#				f.close()
 				
-				if k >= skip_k:
-	#				f = bz2.BZ2File(FILE % k, "w")
-					p = subprocess.Popen(["7za", "a", "-si", FILE % k],
-						stdin=subprocess.PIPE)
-					f = p.stdin
+#				if k >= skip_k:
+#				f = bz2.BZ2File(FILE % k, "w")
+				p = subprocess.Popen(["7za", "a", "-si", FILE % k],
+					stdin=subprocess.PIPE)
+				f = p.stdin
 				
 		db.close()
 		p.communicate()

@@ -128,6 +128,17 @@ if __name__ == "__main__":
 		browse.print_pager(page, len(l) * LINES / LINES_PER_PAGE, form)
 		
 		sys.stdout.flush()
+#		if not form.has_key("thumb"):
+#			print """<br/><form method="get" action="?">
+#				<input type="hidden" name="page" value="%d"/>
+#				<input type="hidden" name="thumb" />
+#				<input type="submit" value="Turn on thumbnail image"/></form>""" % page
+#		else:
+#			print """<br/>Thumbnail image is on. 
+#			<form method="get" action="?">
+#				<input type="hidden" name="page" value="%d"/>
+#				<input type="submit" value="Turn off"/></form>
+#			<br/><br/>""" % page
 			
 		start_line = page * LINES_PER_PAGE % LINES
 		end_line = start_line + LINES_PER_PAGE
@@ -168,7 +179,7 @@ if __name__ == "__main__":
 		browse.print_pager(page, len(l) * LINES / LINES_PER_PAGE, form)		
 		
 		print "<code><small>"
-		print p.communicate()[1].replace("\n", "<br/>")
+		print p.communicate()[1].replace("\n", "<br/>").replace(" ", "&nbsp;")
 		print "</small></code>"
 		
 		print """</body></html>"""

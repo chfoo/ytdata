@@ -23,6 +23,8 @@ import logging
 import httplib
 import httplib2 # http://code.google.com/p/httplib2/
 import time
+import StringIO
+import gzip
 
 class HTTPClient:
 	"""HTTPClient wrapper"""
@@ -53,18 +55,24 @@ class HTTPClient:
 				self.init_connection()
 				self.i = 0
 			
-			if self.i >= self.NUM_CONNECTIONS:
+			if self.i >= len(self.connections):
 				self.i = 0
 			
-			i = self.i
-			connection = self.connections[i]
+			try:
+				i = self.i
+				connection = self.connections[i]
+			except:
+				logging.exception("Index error")
+				time.sleep(1)
+				continue
+	
 			if connection not in self.in_use or \
 			not self.in_use[connection]:
 				try:
-#					headers["Accept-encoding"] = "gzip"
+					headers["Accept-encoding"] = "gzip"
 #					
-					headers["User-Agent"] = headers.get("User-Agent", "") + \
-						" chfoo-crawler (gzip, http://www.student.cs.uwaterloo.ca/~chfoo/ytdata/)"
+#					headers["User-Agent"] = headers.get("User-Agent", "") + \
+					headers["User-Agent"] = " chfoo-crawler (gzip, http://www.student.cs.uwaterloo.ca/~chfoo/ytdata/)"
 					
 					logging.debug("HTTP request [%d] %s %s %s %s" % (i, method, url, data, headers))
 					self.in_use[connection] = True
@@ -97,7 +105,29 @@ class HTTPClient:
 				logging.debug("\tGot response")
 				self.in_use[connection] = False
 				logging.debug("\t %s" % response.getheaders())
-				return response
+				
+				if response.getheader("Content-Encoding", None) == "gzip":
+					logging.debug("\tGzip encoding response")
+					string_buf = StringIO.StringIO(response.read())
+					g_o = gzip.GzipFile(fileobj=string_buf)
+					
+					class DummyResponse:
+						pass
+						
+					dummy_response = DummyResponse()
+					dummy_response.file = g_o
+					dummy_response.read = dummy_response.file.read
+					dummy_response.getheader = response.getheader
+					dummy_response.getheaders = response.getheaders
+					dummy_response.msg = response.msg
+					dummy_response.version = response.version
+					dummy_response.status = response.status
+					dummy_response.reason = response.reason
+					
+					return dummy_response
+				else:
+					return response
+			
 			except httplib.ResponseNotReady:
 				logging.debug("\tHTTP response not ready")
 			
@@ -119,3 +149,18 @@ class HTTPClient:
 			self.connections.remove(connection)
 		return self.request(method, url, data, headers)
 
+if __name__ == "__main__":
+	
+	
+	logger = logging.getLogger()
+	logger.setLevel(logging.DEBUG)
+	
+	c = HTTPClient()
+	
+	response = c.request("get", "http://gdata.youtube.com/feeds/api/users/chfoo0/playlists")
+	print response.read()
+	
+	response = c.request("get", "http://gdata.youtube.com/feeds/api/users/chfoo0")
+	print response.read()
+	
+	

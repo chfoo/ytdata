@@ -540,7 +540,7 @@ def run():
 	
 	console_formatter = logging.Formatter("%(name)s %(levelname)s: %(message)s")
 	sh = logging.StreamHandler()
-	sh.setLevel(logging.INFO)
+	sh.setLevel(logging.DEBUG)
 	sh.setFormatter(console_formatter)
 	logger.addHandler(sh)
 	
