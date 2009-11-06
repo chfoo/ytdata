@@ -65,7 +65,8 @@ class Crawler:
 	RECENT_VIDS_URI = "http://gdata.youtube.com/feeds/api/standardfeeds/most_recent"
 	RECENT_VIDS_INTERVAL = 60 * 45 # seconds
 	MIGHT_AS_WELL_RATE = 0.1 # decrease this for disk performance
-	PROCESS_BLOCK_SIZE = 20 # number of stuff to process in one stage
+	PROCESS_BLOCK_SIZE = 50 # number of stuff to process in one stage
+	QUEUE_SOFT_MAX_LIMIT = 500 # number of items to consider queues as full
 	
 	def __init__(self):
 		# Crawl queue:
@@ -121,9 +122,16 @@ class Crawler:
 				and len(self.tasks) < self.MAX_DOWNLOAD_THREADS:
 					self.process_crawl_queue_item()
 			
-			self.process_entries()
-			self.process_user_entry_queue()
-			self.process_username_queue()
+			while True:
+				self.process_entries()
+				self.process_user_entry_queue()
+				self.process_username_queue()
+				
+				# Don't let the queues fill up too fast
+				if (self.entry_queue.qsize() + self.user_entry_queue.qsize() \
+				+ self.username_queue.qsize()) < self.QUEUE_SOFT_MAX_LIMIT:
+					break
+				
 			self.process_tasks()
 			
 			if random.random() < self.TRAVERSE_RATE \
@@ -140,6 +148,9 @@ class Crawler:
 				self.write_state()
 #				self.write_counter = 0
 				self.last_write_time = time.time()
+			
+#			print self.__dict__
+#			print len(self.crawl_queue), len(self.tasks)
 			
 			logging.debug("Sleeping for %s seconds" % self.ITERATION_SLEEP_TIME)
 			time.sleep(self.ITERATION_SLEEP_TIME)
@@ -373,17 +384,17 @@ class Crawler:
 
 	def add_uri_to_crawl(self, uri, video_id=None, referred_by=None):
 		logging.debug("Adding uri to queue %s, video_id %s, referred_by %s" % (uri, video_id, referred_by))
-		self.crawl_queue.append([uri, video_id, referred_by])
+		self.crawl_queue.append((uri, video_id, referred_by))
 	
 	def add_to_crawl(self, s):
 		"""Add a video id or a API URL to crawl"""
 		
 		if s.startswith("http://"):
-			logging.info("Adding feed %s" % i)
-			crawler.add_uri_to_crawl(s)
+			logging.info("Adding feed %s" % s)
+			self.add_uri_to_crawl(s)
 		else:
-			logging.info("Adding video %s" % i)
-			crawler.add_uri_to_crawl(None, video_id=s)
+			logging.info("Adding video %s" % s)
+			self.add_uri_to_crawl(None, video_id=s)
 	
 	def db_video_insert(self, d):
 		logging.debug("Database video insert")
@@ -540,7 +551,7 @@ def run():
 	
 	console_formatter = logging.Formatter("%(name)s %(levelname)s: %(message)s")
 	sh = logging.StreamHandler()
-	sh.setLevel(logging.DEBUG)
+	sh.setLevel(logging.INFO)
 	sh.setFormatter(console_formatter)
 	logger.addHandler(sh)
 	

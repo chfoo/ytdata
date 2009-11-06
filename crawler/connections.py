@@ -21,9 +21,9 @@ __docformat__ = "restructuredtext en"
 
 import logging
 import httplib
-import httplib2 # http://code.google.com/p/httplib2/
+#import httplib2 # http://code.google.com/p/httplib2/
 import time
-import StringIO
+import cStringIO as StringIO
 import gzip
 
 class HTTPClient:
@@ -43,8 +43,8 @@ class HTTPClient:
 	
 	def init_connection(self):
 		logging.debug("Setup connection...")
-#		conn = httplib.HTTPConnection("gdata.youtube.com")
-		conn = httplib2.HTTPConnectionWithTimeout("gdata.youtube.com")
+		conn = httplib.HTTPConnection("gdata.youtube.com")
+#		conn = httplib2.HTTPConnectionWithTimeout("gdata.youtube.com")
 		self.connections.append(conn)
 		conn.connect()
 		logging.debug("\tOK")
@@ -109,22 +109,27 @@ class HTTPClient:
 				if response.getheader("Content-Encoding", None) == "gzip":
 					logging.debug("\tGzip encoding response")
 					string_buf = StringIO.StringIO(response.read())
-					g_o = gzip.GzipFile(fileobj=string_buf)
+					g_o = StringIO.StringIO(gzip.GzipFile(fileobj=string_buf).read())
 					
-					class DummyResponse:
-						pass
-						
-					dummy_response = DummyResponse()
-					dummy_response.file = g_o
-					dummy_response.read = dummy_response.file.read
-					dummy_response.getheader = response.getheader
-					dummy_response.getheaders = response.getheaders
-					dummy_response.msg = response.msg
-					dummy_response.version = response.version
-					dummy_response.status = response.status
-					dummy_response.reason = response.reason
+#					string_buf.close()
 					
-					return dummy_response
+#					class DummyResponse:
+#						def __del__(self):
+#							logging.debug("%s __del__" % self)
+#						
+#					dummy_response = DummyResponse()
+#					dummy_response.file = g_o
+#					dummy_response.read = g_o.read
+#					dummy_response.getheader = response.getheader
+#					dummy_response.getheaders = response.getheaders
+#					dummy_response.msg = response.msg
+#					dummy_response.version = response.version
+#					dummy_response.status = response.status
+#					dummy_response.reason = response.reason
+					
+#					return dummy_response
+					response.read = g_o.read
+					return response
 				else:
 					return response
 			
