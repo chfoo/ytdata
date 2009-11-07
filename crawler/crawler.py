@@ -65,8 +65,8 @@ class Crawler:
 	RECENT_VIDS_URI = "http://gdata.youtube.com/feeds/api/standardfeeds/most_recent"
 	RECENT_VIDS_INTERVAL = 60 * 45 # seconds
 	MIGHT_AS_WELL_RATE = 0.1 # decrease this for disk performance
-	PROCESS_BLOCK_SIZE = 50 # number of stuff to process in one stage
-	QUEUE_SOFT_MAX_LIMIT = 500 # number of items to consider queues as full
+	PROCESS_BLOCK_SIZE = 25 # number of stuff to process in one stage
+	QUEUE_SOFT_MAX_LIMIT = 100 # number of items to consider queues as full
 	
 	def __init__(self):
 		# Crawl queue:
@@ -367,11 +367,11 @@ class Crawler:
 		task.start()
 		self.tasks.append(task)
 		
-#		if random.random() < self.MIGHT_AS_WELL_RATE:
-		task = Task("fetch-user-subscribers", username=username.encode("utf-8"),
-			http_client=self.httpclient, queue=self.username_queue)
-		task.start()
-		self.tasks.append(task)
+		if random.random() < self.MIGHT_AS_WELL_RATE:
+			task = Task("fetch-user-subscribers", username=username.encode("utf-8"),
+				http_client=self.httpclient, queue=self.username_queue)
+			task.start()
+			self.tasks.append(task)
 		
 		fav_uri = "http://gdata.youtube.com/feeds/api/users/%s/favorites?start-index=1&max-results=50" % username
 		uploads_uri = "http://gdata.youtube.com/feeds/api/users/%s/uploads?start-index=1&max-results=50" % username

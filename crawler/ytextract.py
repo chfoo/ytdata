@@ -76,7 +76,7 @@ class FeedFetcher:
 
 def fetch_subscribers(username, http_client):
 	URL = "http://www.youtube.com/profile?user=%s&view=subscribers&start=%d"
-	FETCH_DELAY = 1
+	FETCH_DELAY = 10
 	i = 0
 	while True:
 		logging.debug("Fetching subscribers %s,%d" % (username, i))
