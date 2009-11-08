@@ -99,7 +99,7 @@ if __name__ == "__main__":
 		if not is_bot:
 			print "<html><head><title>YouTube Data API Crawl Browse - Page %d (%s) </title>" % (page, filename)
 			print """<style>body{font-family:sans-serif;}
-					.num{font-family:monospace;font-size:small;}
+					.num,.vidId{font-family:monospace;font-size:small;}
 					</style></head>"""
 			print "<body>"
 		
@@ -135,14 +135,14 @@ if __name__ == "__main__":
 				continue
 			elif n > end_line:
 				break
-			id, title = line.split(" ", 1)
-#			id = line
-#			title = line
+			id = line[:11]
+			title = line[11:]
 			
 			if not is_bot:
 				print """<span class="num" >%d.</span> """ % (n + i * LINES)
 				if form.has_key("thumb"):
 					print """<img src="http://i.ytimg.com/vi/%s/1.jpg" />""" %id
+				print """<span class="vidId"> %s </span>""" % id
 				print """<a href="http://youtube.com/watch?v=%s">""" % id
 		#		print """<img src="http://i.ytimg.com/vi/%s/0.jpg" /><br/> """ % id
 		#		print """<img src="http://i.ytimg.com/vi/%s/2.jpg" />""" %id

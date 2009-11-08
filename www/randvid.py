@@ -117,7 +117,7 @@ if __name__ == "__main__":
 #		for row in db.conn.execute("SELECT id FROM %s" % db.TABLE_NAME):
 #			if k >= skip_k:
 			f.write(row[0])
-			f.write(" ")
+#			f.write(" ")
 			if row[1]:
 				f.write(row[1][:8].encode("utf-8"))
 				
@@ -133,8 +133,8 @@ if __name__ == "__main__":
 				k += 1
 				
 #				if k > skip_k:
-#					p.communicate()
-	#				f.close()
+				p.communicate()
+				f.close()
 				
 #				if k >= skip_k:
 #				f = bz2.BZ2File(FILE % k, "w")
@@ -156,7 +156,9 @@ if __name__ == "__main__":
 			if form.has_key("watch"):
 				print "Status: 303 See other"
 #				sys.stdout.flush()
-				id, title = get_random_id().split(" ", 1)
+				s = get_random_id()
+				id = s[:11]
+				title = s[11:]
 #				id = get_random_id()
 				print "Location: http://youtube.com/watch?v=%s" % id
 			else:
@@ -164,7 +166,9 @@ if __name__ == "__main__":
 			print "Content-Type: text/html; charset=utf-8"
 			print
 			if not id:
-				id, title = get_random_id().split(" ", 1)
+				s = get_random_id()
+				id = s[:11]
+				title = s[11:]
 #				id = get_random_id()
 #				title = id
 #			sys.stdout.flush()
@@ -186,7 +190,9 @@ if __name__ == "__main__":
 			print "Content-Type: text/plain"
 			print
 #			sys.stdout.flush()
-			id, title = get_random_id().split(" ", 1)
+			s = get_random_id()
+			id = s[:11]
+			title = s[11:]
 			print id
 #			print get_random_id()
 		

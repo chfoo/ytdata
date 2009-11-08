@@ -136,10 +136,11 @@ class HTTPClient:
 			except httplib.ResponseNotReady:
 				logging.debug("\tHTTP response not ready")
 			
-			except httplib.HTTPException:
+			except: #httplib.HTTPException:
 				# Probably got disconnected
 				logging.debug("\tHTTP exception")
 				logging.exception("HTTP exception")
+				time.sleep(10)
 				break
 			
 			
