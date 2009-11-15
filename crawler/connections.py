@@ -50,6 +50,8 @@ class HTTPClient:
 		logging.debug("\tOK")
 	
 	def request(self, method, url, data=None, headers={}):
+		logging.info("HTTP request %s" % url)		
+
 		while True:
 			if len(self.connections) < self.NUM_CONNECTIONS:
 				self.init_connection()

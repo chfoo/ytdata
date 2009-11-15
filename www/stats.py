@@ -131,6 +131,43 @@ def html(html):
 					border="1",
 				)),
 		#		E.DIV("Videos longer than 24 hours excluded"),
+		
+			E.BR(),
+			E.UL(
+				E.LI("""On 2009 November 14/15, videos watched statistics were 
+				reset for many users."""),
+				E.LI("""Deleted videos and users are obtained through playlists 
+				and favourites. Deleted videos are counted as not having a
+				length. Users are also additionally obtained though subscribers
+				scraped from the main website"""),
+				E.LI("""Maximum videos watched is especially not accurate. A
+				 specific user
+				has their stats rising about 1 million videos per month (a
+				rough estimate)"""),
+				E.LI("""Currently unable to retrieve information about users
+				who have do not have an alphanumeric/ASCII username. (How
+				this is possible, I don't know..)"""),
+				E.LI("""Length is especially not accurate. In one instance, a
+				 video's 
+				metadata has duration as 1 year, however, the actual video is
+				only a few minutes. (The Flash player says an error occurred
+				when it cannot read more data). As well, there are also
+				scrambled videos that users decide not to delete. (The videos
+				are like static on an analog television except with coloured 
+				dots.)
+				"""),
+				E.LI("""Records are not updated once information has been 
+				retrieved for them. So, the stats are not accurate"""),
+				),
+				E.LI("""There is a blog post about the number of vids on 
+				YouTube. The old API exposed that there were about 144 million
+				videos. Related videos, on the main website for a recently 
+				uploaded video where related videos were not generated, once
+				had a count of 138 million videos during the start of this
+				project. Google Search also 
+				once exposed the number of videos. I do not remember the
+				count; I will search my logs if I talked on instant messaging
+				about it."""),
 				
 			]
 			)

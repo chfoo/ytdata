@@ -56,7 +56,7 @@ class Crawler:
 	ITERATION_SLEEP_TIME = 0.1 # seconds
 	WRITE_INTERVAL = 60 # seconds
 	MAX_QUEUE_SIZE = 50
-	MAX_DOWNLOAD_THREADS = 4
+	MAX_DOWNLOAD_THREADS = 3
 #	DOWNLOAD_STALL_TIME = 1 # seconds
 	THROTTLE_SLEEP_TIME = 20 # seconds; for iteration sleep time
 	TRAVERSE_RATE = 0.06 # Crawl related videos
