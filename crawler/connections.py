@@ -52,7 +52,9 @@ class HTTPClient:
 	def request(self, method, url, data=None, headers={}):
 		logging.info("HTTP request %s" % url)		
 
-		while True:
+		start_time = time.time()
+		end_time = time.time() + 60 * 5
+		while time.time() < end_time:
 			if len(self.connections) < self.NUM_CONNECTIONS:
 				self.init_connection()
 				self.i = 0

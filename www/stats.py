@@ -134,8 +134,12 @@ def html(html):
 		
 			E.BR(),
 			E.UL(
-				E.LI("""On 2009 November 14/15, videos watched statistics were 
-				reset for many users."""),
+				E.LI("""On 2009 November 14/15, videos watched field was 
+				removed for user channels on the main site. A few Google forum
+				 posts by YouTubers 
+				 states that statistics were 
+				reset for some users. However, the stats were still available
+				on the API. """),
 				E.LI("""Deleted videos and users are obtained through playlists 
 				and favourites. Deleted videos are counted as not having a
 				length. Users are also additionally obtained though subscribers
@@ -158,7 +162,6 @@ def html(html):
 				"""),
 				E.LI("""Records are not updated once information has been 
 				retrieved for them. So, the stats are not accurate"""),
-				),
 				E.LI("""There is a blog post about the number of vids on 
 				YouTube. The old API exposed that there were about 144 million
 				videos. Related videos, on the main website for a recently 
@@ -166,9 +169,9 @@ def html(html):
 				had a count of 138 million videos during the start of this
 				project. Google Search also 
 				once exposed the number of videos. I do not remember the
-				count; I will search my logs if I talked on instant messaging
-				about it."""),
-				
+				count; I probably mentioned in some instant message 
+				conversation once and should be logged somewhere."""),
+			),
 			]
 			)
 		#e = html.xpath("//head")[0]
