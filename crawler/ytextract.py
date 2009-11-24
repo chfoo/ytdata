@@ -112,6 +112,7 @@ def extract_from_entry(entry):
 				d["id"] = qd["v"][0]
 			else:
 				d["id"] = qd["video_id"][0]
+			break
 	
 	logging.debug("Extracting data from %s" % d["id"])
 	

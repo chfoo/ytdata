@@ -250,7 +250,11 @@ class Crawler:
 			if self.entry_queue.empty():
 				break
 			
-			self.process_entry(self.entry_queue.get(block=True))
+			entry = self.entry_queue.get(block=True)
+			try:
+				self.process_entry(entry)
+			except:
+				logging.exception("Unable to process %s sucessfully" % entry)
 			
 	
 	def process_entry(self, entry, referred_by=None):
