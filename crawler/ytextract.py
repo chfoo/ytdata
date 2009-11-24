@@ -101,9 +101,7 @@ def extract_from_entry(entry):
 	
 #	print entry.__dict__
 	d = {}
-#	d["id"] = entry.id.text.rsplit("/", 1)[-1] # this isn't the real id!
-# it differs on playlists
-
+	
 	for link in entry.link:
 		if link.rel == "alternate":
 			query = urlparse.urlparse(link.href)[4]
@@ -113,6 +111,21 @@ def extract_from_entry(entry):
 			else:
 				d["id"] = qd["video_id"][0]
 			break
+	
+	if "id" not in d:
+		# This isn't necessarily the video id, it might be a video id for
+		# a playlist
+		idstr = entry.id.text.rsplit("/", 1)[-1]
+		if len(idstr) == 11:
+			d["id"] = idstr
+		else:
+			# id is for playlist, try looking for clues
+			for link in entry.link:
+				if link.rel == "related":
+					idstr = link.href.rsplit("/", 1)[-1]
+					if len(idstr) == 11:
+						d["id"] = idstr
+						break
 	
 	logging.debug("Extracting data from %s" % d["id"])
 	

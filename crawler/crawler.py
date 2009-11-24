@@ -253,6 +253,8 @@ class Crawler:
 			entry = self.entry_queue.get(block=True)
 			try:
 				self.process_entry(entry)
+			except KeyboardInterrupt:
+				raise KeyboardInterrupt()
 			except:
 				logging.exception("Unable to process %s sucessfully" % entry)
 			
