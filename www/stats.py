@@ -32,6 +32,9 @@ import cgi
 
 import database
 
+NUM_VIDS = float(233178928)
+CRAWL_RATE = 6.0
+
 def html(html):
 	form = cgi.FieldStorage(keep_blank_values=True)
 	if "gen" in form:
@@ -80,14 +83,14 @@ def html(html):
 				"on YouTube, there are ", E.BIG(E.STRONG("%d" % total_views)), " views ",
 				"and ", E.BIG(E.STRONG("%d" % total_hours)), " hours of content")),
 			E.P(
-				"Aproximately %.1f%% of YouTube videos has been crawled. " % (total_videos / 140000000. * 100),
+				"Aproximately %.1f%% of YouTube videos has been crawled. " % (total_videos / NUM_VIDS * 100),
 				u"At this rate, it’s going to take %.1f months for me to complete the crawl." % 
-					((140000000 - total_videos) / (10.0 * 2629743.83 / 2.0)),
+					((NUM_VIDS - total_videos) / (CRAWL_RATE * 2629743.83 / 2.0)),
 				),
 			E.P(
 			E.DIV(
 				E.DIV(u"​",
-					style="width:%f%%;background:#ffa500;border:1px outset" % (total_videos / 140000000. * 100)),
+					style="width:%f%%;background:#ffa500;border:1px outset" % (total_videos / NUM_VIDS * 100)),
 				style="background:#bfbfbf;border:1px inset;;width:90%;margin:auto;")),
 			E.DIV("Statistics breakdown:",
 				E.TABLE(
@@ -134,12 +137,16 @@ def html(html):
 		
 			E.BR(),
 			E.UL(
+				E.LI("""On 2009 December 3 14:00, there are 233178928 videos
+				(from the related videos glitch).
+				"""),
 				E.LI("""On 2009 November 14/15, videos watched field was 
 				removed for user channels on the main site. A few Google forum
 				 posts by YouTubers 
 				 states that statistics were 
-				reset for some users. However, the stats were still available
-				on the API. """),
+				reset for some users. However, the stats are still available
+				on the API. (""", 
+					E.A("ref", href="http://www.google.com/support/forum/p/youtube/thread?tid=7ee68d76002010a9"), """)"""),
 				E.LI("""Deleted videos and users are obtained through playlists 
 				and favourites. Deleted videos are counted as not having a
 				length. Users are also additionally obtained though subscribers

@@ -541,7 +541,7 @@ def run():
 	
 	# Catch KeyboardInterrupt for threads
 	def sigint_handler(signum, frame):
-		sys.exit(0)
+#		sys.exit(0)
 		raise KeyboardInterrupt
 	
 	signal.signal(signal.SIGINT, sigint_handler)
@@ -578,6 +578,8 @@ def run():
 				for i in l:
 					crawler.add_to_crawl(i)
 		crawler.run()
+	except KeyboardInterrupt:
+		raise KeyboardInterrupt
 	except:
 		logging.exception("Run-time error")
 		sys.exit(1)
