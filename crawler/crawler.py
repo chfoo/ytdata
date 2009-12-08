@@ -54,7 +54,7 @@ class Crawler:
 	USER_TABLE_NAME = "usertable1"
 #	QUEUE_SLEEP_TIME = .1 # seconds
 	ITERATION_SLEEP_TIME = 0.1 # seconds
-	WRITE_INTERVAL = 60 # seconds
+	WRITE_INTERVAL = 60 * 2 # seconds
 	MAX_QUEUE_SIZE = 50
 	MAX_DOWNLOAD_THREADS = 3
 #	DOWNLOAD_STALL_TIME = 1 # seconds

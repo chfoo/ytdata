@@ -24,7 +24,7 @@ import sqlite3
 class Database:
 	DB_FILE = "./data/ytdata.db"
 	COLUMNS = (
-		"id TEXT UNIQUE",
+		"id TEXT PRIMARY KEY",
 		"views NUMBER",
 		"rating NUMBER",
 		"rates NUMBER",
@@ -33,38 +33,38 @@ class Database:
 		"referred_by TEXT",
 		"title TEXT",
 		"favorite_count NUMBER",
-		"traversed",)
+		"traversed NUMBER",)
 	TABLE_NAME = "vidtable1"
 	USER_COLUMNS = (
-		"username TEXT UNIQUE",
-		"join_date NUMBER",
+		"username TEXT PRIMARY KEY",
+#		"join_date NUMBER",
 		"videos_watched NUMBER",
-		"uploaded NUMBER",
-		"subscribers NUMBER",
-		"subscriptions NUMBER",
-		"traversed",
-		"favorites NUMBER",
-		"views NUMBER",
+#		"uploaded NUMBER",
+#		"subscribers NUMBER",
+#		"subscriptions NUMBER",
+		"traversed NUMBER",
+#		"favorites NUMBER",
+#		"views NUMBER",
 		)
 	USER_TABLE_NAME = "usertable1"
-	PLAYLIST_COLUMNS = (
-		"id",
-		"published",
-		"title",
-		"traversed",
-	)
-	PLAYLIST_TABLE_NAME = "playlisttable1"
+#	PLAYLIST_COLUMNS = (
+#		"id",
+#		"published",
+#		"title",
+#		"traversed",
+#	)
+#	PLAYLIST_TABLE_NAME = "playlisttable1"
 	
 	def __init__(self):
 		self.connection = sqlite3.connect(self.DB_FILE)
 		self.conn = self.connection
 	
 	def create_table(self, num="1"):
-		self.conn.execute("CREATE TABLE vidtable%s(%s)" % (num, ",".join(self.COLUMNS)))
-		self.conn.execute("CREATE TABLE usertable%s(%s)" % (num, ",".join(self.USER_COLUMNS)))
+		self.conn.execute("CREATE TABLE vidtable%s (%s)" % (num, ",".join(self.COLUMNS)))
+		self.conn.execute("CREATE TABLE usertable%s (%s)" % (num, ",".join(self.USER_COLUMNS)))
 		
-		self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS video_id ON %s (id)" % self.TABLE_NAME)
-		self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS user_id ON %s (username)" % self.USER_TABLE_NAME)
+		self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS video_id%s ON %s (id ASC)" % (num, self.TABLE_NAME))
+		self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS user_id%s ON %s (username ASC)" % (num, self.USER_TABLE_NAME))
 		
 	
 	def close(self):
