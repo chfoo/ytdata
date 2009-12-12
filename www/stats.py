@@ -32,7 +32,7 @@ import cgi
 
 import database
 
-NUM_VIDS = float(238134528) + 555555 * (time.time() - 1260624032)
+NUM_VIDS = float(238134528) + 555555 * (time.time() - 1260624032) / 86400
 CRAWL_RATE = 6.0
 
 def html(html):
