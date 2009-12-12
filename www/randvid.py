@@ -36,7 +36,7 @@ import subprocess
 #FILE_GLOB = "cache/video_ids.*.bz2"
 FILE = "cache/video_ids.%08d.7z"
 FILE_GLOB = "cache/video_ids.*.7z"
-LINES = 100000
+LINES = 200000
 
 
 def get_random_id():

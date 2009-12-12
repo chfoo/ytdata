@@ -103,7 +103,7 @@ class HTTPClient:
 			time.sleep(0.01)
 		
 		r2_time = time.time()
-		while time.time() - r2_time < 60:
+		while time.time() - r2_time < 60 and time.time() < end_time:
 			try:
 				response = connection.getresponse()
 				logging.debug("\tGot response")

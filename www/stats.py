@@ -32,7 +32,7 @@ import cgi
 
 import database
 
-NUM_VIDS = float(233178928)
+NUM_VIDS = float(238134528) + 555555 * (time.time() - 1260624032)
 CRAWL_RATE = 6.0
 
 def html(html):
@@ -137,6 +137,8 @@ def html(html):
 		
 			E.BR(),
 			E.UL(
+				E.LI("""On 2009 December 12 13:15, there are 238134528 videos
+				"""),
 				E.LI("""On 2009 December 3 14:00, there are 233178928 videos
 				(from the related videos glitch).
 				"""),

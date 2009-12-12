@@ -55,7 +55,7 @@ class Crawler:
 #	QUEUE_SLEEP_TIME = .1 # seconds
 	ITERATION_SLEEP_TIME = 0.1 # seconds
 	WRITE_INTERVAL = 60 * 2 # seconds
-	MAX_QUEUE_SIZE = 50
+	MAX_QUEUE_SIZE = 50 # max number of urls to be crawled
 	MAX_DOWNLOAD_THREADS = 3
 #	DOWNLOAD_STALL_TIME = 1 # seconds
 	THROTTLE_SLEEP_TIME = 20 # seconds; for iteration sleep time
@@ -65,7 +65,7 @@ class Crawler:
 	RECENT_VIDS_URI = "http://gdata.youtube.com/feeds/api/standardfeeds/most_recent"
 	RECENT_VIDS_INTERVAL = 60 * 45 # seconds
 	MIGHT_AS_WELL_RATE = 0.1 # decrease this for disk performance
-	PROCESS_BLOCK_SIZE = 25 # number of stuff to process in one stage
+	PROCESS_BLOCK_SIZE = 20 # number of stuff to process in one stage
 	QUEUE_SOFT_MAX_LIMIT = 100 # number of items to consider queues as full
 	
 	def __init__(self):

@@ -31,7 +31,7 @@ import glob
 import subprocess
 FILE = "cache/usernames.%08d.7z"
 FILE_GLOB = "cache/usernames.*.7z"
-LINES = 100000
+LINES = 200000
 LINES_PER_PAGE = 1000
 import browse
 browse.MAGNITUDE = 100

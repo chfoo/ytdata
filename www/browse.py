@@ -33,7 +33,7 @@ import glob
 import subprocess
 #FILE_GLOB = "cache/video_ids.*.bz2"
 FILE_GLOB = "cache/video_ids.*.7z"
-LINES = 100000
+LINES = 200000
 LINES_PER_PAGE = 1000
 MAGNITUDE = 1000
 
