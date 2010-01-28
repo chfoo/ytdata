@@ -31,11 +31,14 @@ import glob
 #import gzip
 #import bz2
 import subprocess
+import base64
 #import tempfile
 #FILE = "cache/video_ids.%08d.bz2"
 #FILE_GLOB = "cache/video_ids.*.bz2"
-FILE = "cache/video_ids.%08d.7z"
-FILE_GLOB = "cache/video_ids.*.7z"
+#FILE = "cache/video_ids.%08d.7z"
+#FILE_GLOB = "cache/video_ids.*.7z"
+FILE = "cache/video_ids.%08d.binary"
+FILE_GLOB = "cache/video_ids.*.binary"
 LINES = 200000
 
 
@@ -50,9 +53,10 @@ def get_random_id():
 	else:
 		executable = None
 		
-	p = subprocess.Popen(["7za", "x",  "-so", filename],
-		stdout=subprocess.PIPE, executable=executable)
-	f = p.stdout
+#	p = subprocess.Popen(["7za", "x",  "-so", filename],
+#		stdout=subprocess.PIPE, executable=executable)
+#	f = p.stdout
+	f = open(filename, "rb")
 	
 	if filename == l[-1]:
 		# http://code.activestate.com/recipes/59865/
@@ -60,7 +64,8 @@ def get_random_id():
 		it = ""
 
 		while True:
-			a_line = f.readline()
+#			a_line = f.readline()
+			a_line = f.read(11)
 			line_num = line_num + 1
 			if a_line != "":
 				if random.uniform(0, line_num)<1:
@@ -73,15 +78,16 @@ def get_random_id():
 		rand_num = random.randint(0, LINES)
 		line_num = 0
 		while line_num < rand_num:
-			a_line = f.readline()
+#			a_line = f.readline()
+			a_line = f.read(8)
 			line_num += 1
 		
 		global rand_pick_num
 		rand_pick_num = int(filename.split(".")[-2]) * LINES + line_num
-		it = f.readline()
+		it = f.read(8)#f.readline()
 		
 	f.close()
-	return it
+	return base64.urlsafe_b64encode(it)[:11]
 
 
 if __name__ == "__main__":
@@ -106,9 +112,10 @@ if __name__ == "__main__":
 #		k = 0
 #		f = bz2.BZ2File(FILE % k, "w")
 #		if not skip_k:
-		p = subprocess.Popen(["7za", "a", "-si", FILE % k],
-			stdin=subprocess.PIPE)
-		f = p.stdin
+#		p = subprocess.Popen(["7za", "a", "-si", FILE % k],
+#			stdin=subprocess.PIPE)
+#		f = p.stdin
+		f = open(FILE % k, "wb")
 			
 		i = 0
 		for row in db.conn.execute("SELECT id, title FROM %s LIMIT -1 OFFSET %d" 
@@ -116,15 +123,15 @@ if __name__ == "__main__":
 #		for row in db.conn.execute("SELECT id, title FROM %s ORDER BY id" % db.TABLE_NAME):
 #		for row in db.conn.execute("SELECT id FROM %s" % db.TABLE_NAME):
 #			if k >= skip_k:
-			f.write(row[0])
+			f.write(base64.urlsafe_b64decode("%s=" % str(row[0])))
 #			f.write(" ")
-			if row[1]:
-				f.write(row[1][:8].encode("utf-8"))
-				
-				if len(row[1]) > 16:
-					f.write(u"…".encode("utf-8"))
-				
-				f.write("\n")
+#			if row[1]:
+#				f.write(row[1][:8].encode("utf-8"))
+#				
+#				if len(row[1]) > 16:
+#					f.write(u"…".encode("utf-8"))
+#				
+#				f.write("\n")
 				
 			i += 1
 			
@@ -133,14 +140,15 @@ if __name__ == "__main__":
 				k += 1
 				
 #				if k > skip_k:
-				p.communicate()
+#				p.communicate()
 				f.close()
 				
 #				if k >= skip_k:
 #				f = bz2.BZ2File(FILE % k, "w")
-				p = subprocess.Popen(["7za", "a", "-si", FILE % k],
-					stdin=subprocess.PIPE)
-				f = p.stdin
+#				p = subprocess.Popen(["7za", "a", "-si", FILE % k],
+#					stdin=subprocess.PIPE)
+#				f = p.stdin
+				f = open(FILE % k, "wb")
 				
 		db.close()
 		p.communicate()
@@ -158,7 +166,7 @@ if __name__ == "__main__":
 #				sys.stdout.flush()
 				s = get_random_id()
 				id = s[:11]
-				title = s[11:]
+				title = id # s[11:]
 #				id = get_random_id()
 				print "Location: http://youtube.com/watch?v=%s" % id
 			else:
@@ -168,7 +176,7 @@ if __name__ == "__main__":
 			if not id:
 				s = get_random_id()
 				id = s[:11]
-				title = s[11:]
+				title = s # s[11:]
 #				id = get_random_id()
 #				title = id
 #			sys.stdout.flush()
@@ -192,7 +200,7 @@ if __name__ == "__main__":
 #			sys.stdout.flush()
 			s = get_random_id()
 			id = s[:11]
-			title = s[11:]
+			title = s #s[11:]
 			print id
 #			print get_random_id()
 		

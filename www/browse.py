@@ -31,8 +31,10 @@ import glob
 #import bz2
 #import cStringIO as StringIO
 import subprocess
+import base64
 #FILE_GLOB = "cache/video_ids.*.bz2"
-FILE_GLOB = "cache/video_ids.*.7z"
+#FILE_GLOB = "cache/video_ids.*.7z"
+FILE_GLOB = "cache/video_ids.*.binary"
 LINES = 200000
 LINES_PER_PAGE = 1000
 MAGNITUDE = 1000
@@ -86,10 +88,11 @@ if __name__ == "__main__":
 		
 		filename = l[i]
 #		f = bz2.BZ2File(filename)
-		p = subprocess.Popen(["7za", "x", "-so", filename],
-			stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
-			executable=executable)
-		f = p.stdout
+#		p = subprocess.Popen(["7za", "x", "-so", filename],
+#			stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
+#			executable=executable)
+#		f = p.stdout
+		f = open(filename, "rb")
 		
 		print "Status: 200 OK"
 		print "Content-type: text/html; charset=utf-8"
@@ -125,7 +128,7 @@ if __name__ == "__main__":
 		end_line = start_line + LINES_PER_PAGE
 		n = 1
 		while True:
-			line = f.readline()
+			line = base64.urlsafe_b64encode(f.read(8))[:11]# f.readline()
 			if line == "" and not is_bot:
 				print "<br/><small>EOF</small>"
 				break
@@ -136,7 +139,7 @@ if __name__ == "__main__":
 			elif n > end_line:
 				break
 			id = line[:11]
-			title = line[11:]
+			title = id #line[11:]
 			
 			if not is_bot:
 				print """<span class="num" >%d.</span> """ % (n + i * LINES)
