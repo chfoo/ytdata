@@ -168,7 +168,7 @@ if __name__ == "__main__":
 			print_pager(page, len(l) * LINES / LINES_PER_PAGE, form)		
 		
 			print "<code><small>"
-			print p.communicate()[1].replace("\n", "<br/>").replace(" ", "&nbsp;")
+#			print p.communicate()[1].replace("\n", "<br/>").replace(" ", "&nbsp;")
 			print "</small></code>"
 		
 			print """</body></html>"""

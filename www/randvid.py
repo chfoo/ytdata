@@ -151,7 +151,7 @@ if __name__ == "__main__":
 				f = open(FILE % k, "wb")
 				
 		db.close()
-		p.communicate()
+#		p.communicate()
 #		f.close()
 		
 	
