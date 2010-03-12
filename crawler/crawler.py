@@ -299,10 +299,13 @@ class Crawler:
 		username = entry.author[0].name.text.decode("utf-8")
 		
 		if random.random() < self.MIGHT_AS_WELL_RATE:
-			if not self.user_in_database(username):
+#			if not self.user_in_database(username):
+			try:
 				logging.debug("\tInsert username into database")
 				self.db.conn.execute("""INSERT INTO %s (username)
 					VALUES (?)""" % self.db.USER_TABLE_NAME, [username])
+			except sqlite3.IntegrityError, e:
+				logging.debug("\tIntegrity error (user already in database)" + e.args[0])
 		
 		if self.user_was_traversed(username):
 			logging.debug("\tUser was already traversed.")
@@ -322,10 +325,14 @@ class Crawler:
 				break
 			
 			username = self.username_queue.get(block=True)
-			if not self.user_in_database(username):
+#			if not self.user_in_database(username):
+			try:
 				logging.debug("Insert username %s into database" % username)
 				self.db.conn.execute("""INSERT INTO %s (username)
 					VALUES (?)""" % self.db.USER_TABLE_NAME, [username])
+			except sqlite3.IntegrityError, e:
+				logging.debug("\tIntegrity error (user already in database)" + e.args[0])
+	
 	
 	def traverse_video(self, video_id, entry=None):
 		"""Queue related and video responses feed, mark video as traversed"""
