@@ -2,7 +2,7 @@
 
 """YouTube API Data Crawler"""
 
-# Copyright (C) 2009 Christopher Foo <chris.foo@gmail.com>
+# Copyright (C) 2009, 2010 Christopher Foo <chris.foo@gmail.com>
 #
 # This file is part of ytdata.
 #
@@ -43,6 +43,7 @@ import cStringIO as StringIO
 import threading
 import Queue as queue
 
+import sqlite3
 import database
 import ytextract
 import http_server
@@ -269,12 +270,21 @@ class Crawler:
 		logging.info("Processing entry %s" % d["id"])
 		logging.debug("\tData: %s" % d)
 		
-		if self.in_database(d["id"]):
-			logging.debug("\tAlready database. Not updating")
-		else:
-			logging.info("\tNew! Adding to database.")
+		# Begin old logic block		
+#		if self.in_database(d["id"]):
+#			logging.debug("\tAlready database. Not updating")
+#		else:
+#			logging.info("\tNew! Adding to database.")
+#			self.db_video_insert(d)
+#			self.vids_crawled_session += 1
+		# End old logic block
+		# Try to insert, if success, then it is a new video
+		try:
 			self.db_video_insert(d)
 			self.vids_crawled_session += 1
+			logging.info("\tNew! Added to database.")
+		except sqlite3.IntegrityError, e:
+			logging.debug("\tIntegrity error (video already in database)" + e.args[0])
 		
 		if self.was_traversed(d["id"]):
 			logging.debug("\tAlready traversed.")
