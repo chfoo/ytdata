@@ -135,8 +135,9 @@ class Crawler:
 				
 			self.process_tasks()
 			
-			if random.random() < self.TRAVERSE_RATE \
-			and len(self.crawl_queue) < self.MAX_QUEUE_SIZE / 2:
+			# Crawl some usernames when queue dries up
+#			if random.random() < self.TRAVERSE_RATE \
+			if len(self.crawl_queue) < self.MAX_QUEUE_SIZE / 2:
 				username = self.get_username()
 				if username is not None:
 					self.traverse_user(username)
@@ -162,7 +163,7 @@ class Crawler:
 				self.throttle_required = time.time() < self.throttle_next_time
 			
 		self.write_state()
-		logging.info("Run finished. This shouldn't happen; try adding more video ids to crawl or adjusting the traversal rate.")
+		logging.info("Run finished. This shouldn't happen.")
 		
 	def in_database(self, video_id):
 		"""Get whether video is already in database
