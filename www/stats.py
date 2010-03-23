@@ -137,6 +137,9 @@ def html(html):
 		
 			E.BR(),
 			E.UL(
+				E.LI("""On 2010 March 17, YouTube released a confidentional document about 
+				Viacom v. YouTube. It states that there are over 500 million videos and over
+				200 million users"""),
 				E.LI("""On 2009 December 12 13:15, there are 238134528 videos
 				"""),
 				E.LI("""On 2009 December 3 14:00, there are 233178928 videos
