@@ -2,7 +2,7 @@
 
 """Build HTML for statistics display"""
 
-# Copyright (C) 2009 Christopher Foo <chris.foo@gmail.com>
+# Copyright (C) 2009, 2010 Christopher Foo <chris.foo@gmail.com>
 #
 # This file is part of ytdata.
 #
@@ -35,9 +35,9 @@ import database
 NUM_VIDS = float(238134528) + 555555 * (time.time() - 1260624032) / 86400
 CRAWL_RATE = 6.0
 
-def html(html):
+def html(html, standalone=False):
 	form = cgi.FieldStorage(keep_blank_values=True)
-	if "gen" in form:
+	if "gen" in form or standalone:
 	
 		cwd = os.getcwd()
 		os.chdir("../crawler")

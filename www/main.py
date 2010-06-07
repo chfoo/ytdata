@@ -1,6 +1,6 @@
 """Build webpage by dispatching to appropriate modules"""
 
-# Copyright (C) 2009 Christopher Foo <chris.foo@gmail.com>
+# Copyright (C) 2009, 2010 Christopher Foo <chris.foo@gmail.com>
 #
 # This file is part of ytdata.
 #
@@ -25,7 +25,7 @@ from lxml.html import builder as E
 
 import stats
 
-def run():
+def run(standalone=False):
 	start_time = time.time()
 	
 	footer = lxml.html.Element("div", id="footer")
@@ -56,14 +56,17 @@ def run():
 			footer)
 		)
 	
-	stats.html(html)
+	stats.html(html, standalone)
 	
 	footer.append(E.DIV("Page generated on ", time.strftime("%Y-%m-%d %H:%M:%S %Z"),
 			" in %.3f seconds" % (time.time() - start_time)))
 	
-	print "Status: 200 OK"
-	print "Content-Type: text/html; charset=utf-8"
-	print
+	if not standalone:
+		print "Status: 200 OK"
+		print "Content-Type: text/html; charset=utf-8"
+		print
 	print lxml.html.tostring(html, pretty_print=True, encoding="utf-8")
 	
-	
+if __name__ == "__main__":
+	run(standalone=True)
+
