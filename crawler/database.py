@@ -63,8 +63,9 @@ class Database:
 		self.conn.execute("CREATE TABLE vidtable%s (%s)" % (num, ",".join(self.COLUMNS)))
 		self.conn.execute("CREATE TABLE usertable%s (%s)" % (num, ",".join(self.USER_COLUMNS)))
 		
-		self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS video_id%s ON %s (id ASC)" % (num, self.TABLE_NAME))
-		self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS user_id%s ON %s (username ASC)" % (num, self.USER_TABLE_NAME))
+		# XXX: sqlite now has automatic indix on primary key and unique columns
+#		self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS video_id%s ON %s (id ASC)" % (num, self.TABLE_NAME))
+#		self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS user_id%s ON %s (username ASC)" % (num, self.USER_TABLE_NAME))
 		
 	
 	def close(self):
