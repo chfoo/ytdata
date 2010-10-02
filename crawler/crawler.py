@@ -54,18 +54,18 @@ class Crawler:
 	TABLE_NAME = "vidtable1"
 	USER_TABLE_NAME = "usertable1"
 #	QUEUE_SLEEP_TIME = .1 # seconds
-	ITERATION_SLEEP_TIME = 0.1 # seconds
+	ITERATION_SLEEP_TIME = 0.4 # seconds
 	WRITE_INTERVAL = 60 * 2 # seconds
 	MAX_QUEUE_SIZE = 50 # max number of urls to be crawled
-	MAX_DOWNLOAD_THREADS = 3
+	MAX_DOWNLOAD_THREADS = 2
 #	DOWNLOAD_STALL_TIME = 1 # seconds
 	THROTTLE_SLEEP_TIME = 20 # seconds; for iteration sleep time
-	TRAVERSE_RATE = 0.06 # Crawl related videos
-	USER_TRAVERSE_RATE = 0.1 # crawl user favs, uploads, playlists
+	TRAVERSE_RATE = 0.01 # Crawl related videos
+	USER_TRAVERSE_RATE = 0.001 # crawl user favs, uploads, playlists
 	THROTTLE_STALL_TIME = 60 * 5 # seconds
 	RECENT_VIDS_URI = "http://gdata.youtube.com/feeds/api/standardfeeds/most_recent"
-	RECENT_VIDS_INTERVAL = 60 * 45 # seconds
-	MIGHT_AS_WELL_RATE = 0.1 # decrease this for disk performance
+	RECENT_VIDS_INTERVAL = 60 * 20 # seconds
+	MIGHT_AS_WELL_RATE = 0.5 # decrease this for disk performance
 	PROCESS_BLOCK_SIZE = 20 # number of stuff to process in one stage
 	QUEUE_SOFT_MAX_LIMIT = 100 # number of items to consider queues as full
 	
