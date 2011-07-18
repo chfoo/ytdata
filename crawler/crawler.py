@@ -2,7 +2,7 @@
 
 """YouTube API Data Crawler"""
 
-# Copyright (C) 2009, 2010 Christopher Foo <chris.foo@gmail.com>
+# Copyright (C) 2009, 2010, 2011 Christopher Foo <chris.foo@gmail.com>
 #
 # This file is part of ytdata.
 #

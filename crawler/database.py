@@ -1,6 +1,6 @@
 """sqlite database handler"""
 
-# Copyright (C) 2009 Christopher Foo <chris.foo@gmail.com>
+# Copyright (C) 2009. 2011 Christopher Foo <chris.foo@gmail.com>
 #
 # This file is part of ytdata.
 #
@@ -19,7 +19,10 @@
 
 __docformat__ = "restructuredtext en"
 
+import ConfigParser
 import sqlite3
+
+import pymongo
 
 class Database:
 	DB_FILE = "./data/ytdata.db"
