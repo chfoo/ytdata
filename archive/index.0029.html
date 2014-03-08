@@ -1,0 +1,150 @@
+HTTP/1.0 200 OK
+Status: 200 OK
+Content-Type: text/html; charset=utf-8
+Connection: close
+Date: Mon, 15 Mar 2010 01:47:29 GMT
+Server: lighttpd/1.4.22
+
+<html>
+<head>
+<title>YouTube API Data Crawl</title>
+<link href="static/style.css" type="text/css" rel="stylesheet">
+</head>
+<body>
+<div id="header">
+<div id="banner">YouTube API Data Crawl Statistics</div>
+<ul class="navbar">
+<li><a href=".">Home</a></li>
+<li><a href="./cache/">Downloads</a></li>
+<li><a href="randvid.cgi?watch">Watch Random YouTube Video</a></li>
+<li><a style="block:inline" href="randvid.cgi?preview">; Preview</a></li>
+<li><a style="block:inline" href="randvid.cgi">; Robot readable</a></li>
+<li><a href="browse.cgi">Browse short listings</a></li>
+<li><a href="userbrowse.cgi">Browse usernames</a></li>
+<li><a href="play.cgi">Watch all YouTube videos</a></li>
+</ul>
+</div>
+<div id="mainContent">
+<div><big>Of <big><strong>66214920</strong></big> videos on YouTube, there are <big><strong>626413800165</strong></big> views and <big><strong>4316362</strong></big> hours of content</big></div>
+<p>Aproximately 22.9% of YouTube videos has been crawled. At this rate, it’s going to take 28.3 months for me to complete the crawl.</p>
+<p><div style="background:#bfbfbf;border:1px inset;;width:90%;margin:auto;"><div style="width:22.870283%;background:#ffa500;border:1px outset">​</div></div></p>
+<div>Statistics breakdown:<table border="1">
+<tr>
+<td>Last updated</td>
+<td>2010-03-14 21:48:29 UTC</td>
+</tr>
+<tr>
+<td>Database size (bytes)</td>
+<td class="tableNumber">9335390208</td>
+</tr>
+<tr>
+<td>Videos</td>
+<td class="tableNumber">66214920</td>
+</tr>
+<tr>
+<td>Views</td>
+<td class="tableNumber">626413800165</td>
+</tr>
+<tr>
+<td>Length (seconds)</td>
+<td class="tableNumber">15538905445</td>
+</tr>
+<tr>
+<td>Length (years)</td>
+<td class="tableNumber">492.41</td>
+</tr>
+<tr>
+<td>Rates</td>
+<td class="tableNumber">1380614444</td>
+</tr>
+<tr>
+<td>Favourites</td>
+<td class="tableNumber">1030214101</td>
+</tr>
+<tr>
+<td>Deleted</td>
+<td class="tableNumber">3013951</td>
+</tr>
+<tr>
+<td>Users</td>
+<td class="tableNumber">7381714</td>
+</tr>
+<tr>
+<td>Average rating per video</td>
+<td class="tableNumber">4.57</td>
+</tr>
+<tr>
+<td>Average views per video</td>
+<td class="tableNumber">9986.04</td>
+</tr>
+<tr>
+<td>Average seconds per video</td>
+<td class="tableNumber">245.86</td>
+</tr>
+<tr>
+<td>Average minutes per video</td>
+<td class="tableNumber">4.10</td>
+</tr>
+<tr>
+<td>Average favourites per video</td>
+<td class="tableNumber">17.46</td>
+</tr>
+<tr>
+<td>Average videos watched per user</td>
+<td class="tableNumber">6270.73</td>
+</tr>
+<tr>
+<td>Maximum videos watched for a user</td>
+<td class="tableNumber">6043637</td>
+</tr>
+</table>
+</div>
+<br><ul>
+<li>On 2009 December 12 13:15, there are 238134528 videos
+				</li>
+<li>On 2009 December 3 14:00, there are 233178928 videos
+				(from the related videos glitch).
+				</li>
+<li>On 2009 November 14/15, videos watched field was 
+				removed for user channels on the main site. A few Google forum
+				 posts by YouTubers 
+				 states that statistics were 
+				reset for some users. However, the stats are still available
+				on the API. (<a href="http://www.google.com/support/forum/p/youtube/thread?tid=7ee68d76002010a9">ref</a>)</li>
+<li>Deleted videos and users are obtained through playlists 
+				and favourites. Deleted videos are counted as not having a
+				length. Users are also additionally obtained though subscribers
+				scraped from the main website</li>
+<li>Maximum videos watched is especially not accurate. A
+				 specific user
+				has their stats rising about 1 million videos per month (a
+				rough estimate)</li>
+<li>Currently unable to retrieve information about users
+				who have do not have an alphanumeric/ASCII username. (How
+				this is possible, I don't know..)</li>
+<li>Length is especially not accurate. In one instance, a
+				 video's 
+				metadata has duration as 1 year, however, the actual video is
+				only a few minutes. (The Flash player says an error occurred
+				when it cannot read more data). As well, there are also
+				scrambled videos that users decide not to delete. (The videos
+				are like static on an analog television except with coloured 
+				dots.)
+				</li>
+<li>Records are not updated once information has been 
+				retrieved for them. So, the stats are not accurate</li>
+<li>There is a blog post about the number of vids on 
+				YouTube. The old API exposed that there were about 144 million
+				videos. Related videos, on the main website for a recently 
+				uploaded video where related videos were not generated, once
+				had a count of 138 million videos during the start of this
+				project. Google Search also 
+				once exposed the number of videos. I do not remember the
+				count; I probably mentioned in some instant message 
+				conversation once and should be logged somewhere.</li>
+</ul>
+</div>
+<div id="footer"><div>Page generated on 2010-03-14 21:47:29 EDT in 1544.434 seconds</div></div>
+</body>
+</html>
+
