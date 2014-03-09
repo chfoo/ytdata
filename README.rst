@@ -48,8 +48,8 @@ Maximum videos watched for a user   6043637
 =================================== =======================
 
 
-Database dump
--------------
+Dataset
+-------
 
-TODO: Upload to archive.org and link here.
+The dataset is available as a SQLite database dump file at: https://archive.org/details/YouTubeCrawlSurveyDataset2009-2010 .
 
